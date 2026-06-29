@@ -104,15 +104,6 @@
 
     <Property Id="INSTALLFOLDER" Secure="yes" />
 
-    <Property Id="KINGDOMGAMEFOLDERVALID" Secure="yes">
-      <DirectorySearch
-        Id="SelectedKingdomGameFolderDirectorySearch"
-        Path="[INSTALLFOLDER]"
-        Depth="0">
-        <FileSearch Id="SelectedKingdomGameExeSearch" Name="KingdomTwoCrowns.exe" />
-      </DirectorySearch>
-    </Property>
-
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromPreviousKingdomMod" Value="[PREVIOUSKINGDOMMODINSTALLFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="PREVIOUSKINGDOMMODINSTALLFOLDER AND NOT Installed" />
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteamHkcuApp" Value="[STEAMKINGDOMTWOCROWNSFOLDER_HKCU_RAW]" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMKINGDOMTWOCROWNSFOLDER_HKCU AND NOT Installed" />
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteam" Value="[STEAMKINGDOMTWOCROWNSFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMKINGDOMTWOCROWNSFOLDER AND NOT Installed" />
@@ -165,13 +156,6 @@
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
       </Dialog>
 
-      <Dialog Id="InvalidGameFolderDlg" Width="260" Height="120" Title="[ProductName] Setup">
-        <Control Id="Text" Type="Text" X="15" Y="20" Width="230" Height="45" Text="The selected folder does not contain KingdomTwoCrowns.exe. Browse to your actual Kingdom Two Crowns install folder and try again." />
-        <Control Id="OK" Type="PushButton" X="102" Y="84" Width="56" Height="17" Default="yes" Cancel="yes" Text="OK">
-          <Publish Event="EndDialog" Value="Return" />
-        </Control>
-      </Dialog>
-
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
 
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="1" Condition="NOT Installed AND PREVIOUSKINGDOMMODINSTALLFOLDER" />
@@ -185,20 +169,14 @@
       <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath_X64" Order="1" />
       <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="2" Condition="WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
       <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
-      <Publish Dialog="InstallDirDlg" Control="Next" Property="KINGDOMGAMEFOLDERVALID" Value="{}" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="AppSearch" Order="5" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidGameFolderDlg" Order="6" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot; AND NOT KINGDOMGAMEFOLDERVALID" />
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DefenderExclusionDlg" Order="7" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot; AND KINGDOMGAMEFOLDERVALID" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DefenderExclusionDlg" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
       <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
       <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
 
       <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath_X64" Order="1" />
       <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="2" Condition="WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
       <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="3" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
-      <Publish Dialog="BrowseDlg" Control="OK" Property="KINGDOMGAMEFOLDERVALID" Value="{}" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
-      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="AppSearch" Order="5" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
-      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidGameFolderDlg" Order="6" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot; AND NOT KINGDOMGAMEFOLDERVALID" />
-      <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="7" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot; AND KINGDOMGAMEFOLDERVALID" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
 
       <Publish Dialog="DefenderExclusionDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" />
       <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="NewDialog" Value="GameLaunchNoticeDlg" Condition="DEFENDEREXCLUSIONACCEPTED=&quot;1&quot;" />
