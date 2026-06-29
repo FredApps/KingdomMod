@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-  Builds KingdomMod and refreshes the committable dist/ release payload.
+  Builds KingdomMod locally and refreshes dist/ for developer smoke testing.
 
 .DESCRIPTION
-  GitHub Actions cannot generate the game-derived refs/ assemblies required to
-  compile KingdomMod. Run this locally after tools/install.ps1 has generated
-  refs/. The script copies only KingdomMod-built DLLs into dist/.
+  Run this locally after tools/install.ps1 has generated refs/. The script
+  copies only KingdomMod-built DLLs into dist/, which is gitignored and is not
+  used by the MSI release workflow.
 #>
 param(
     [switch]$SkipBuild

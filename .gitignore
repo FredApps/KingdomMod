@@ -40,11 +40,10 @@ obj/
 *.user
 artifacts/
 
-# Release payload: commit only KingdomMod-built DLLs. Do not commit generated
-# reference assemblies, dumps, or third-party installer payloads.
+# Local release/build payloads. The MSI builds KingdomMod DLLs on the target
+# machine; dist/ is only a local convenience cache.
 dist/*
 !dist/.gitkeep
-!dist/KingdomMod*.dll
 
 # OS / editor
 .claude/

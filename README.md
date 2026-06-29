@@ -15,13 +15,17 @@ tree behavior, and sprite replacement.
 1. Download `KingdomMod-<version>-x64.msi` from the latest GitHub Release.
 2. Run the MSI.
 3. Confirm or browse to your Kingdom Two Crowns folder.
-4. Launch the game normally.
-5. Press **F1** in-game to open the KingdomMod console.
+4. Let the installer launch the game once if interop references must be
+   generated. This first pass can take several minutes.
+5. Launch the game normally.
+6. Press **F1** in-game to open the KingdomMod console.
 
-The MSI installs the loader, API, and bundled example mods into the game's
-`Mods` folder. If MelonLoader is not present, the installer adds the bundled
-MelonLoader runtime. If MelonLoader is already present, KingdomMod leaves that
-installation owned by you.
+The MSI installs MelonLoader if needed, installs KingdomMod's patched Cpp2IL,
+generates local references from your own game install, extracts a bundled .NET
+SDK for setup-time compilation, builds KingdomMod DLLs on your machine, and
+copies the loader, API, and bundled example mods into the game's `Mods` folder.
+If MelonLoader is already present, KingdomMod leaves that installation owned by
+you.
 
 ## Uninstall
 
@@ -82,8 +86,11 @@ enabled. A first-run popup warns about multiplayer desync and cloud-save risk.
 
 ## Developer Setup
 
-Developers who want to build or write mods still need the local PowerShell
-tooling because the SDK references are generated from your own game install:
+Normal install and developer setup share the same core model: KingdomMod DLLs
+compile on the machine that owns the game, after local references are generated
+from that game install. The MSI automates that for players and brings its own
+setup-time SDK. Clone the repo only if you want to change KingdomMod, write
+mods, or prepare releases:
 
 ```powershell
 git clone https://github.com/FredApps/KingdomMod.git
@@ -97,7 +104,7 @@ installs KingdomMod's patched Cpp2IL, generates local `refs/`, and optionally
 dumps the class surface used by the docs. `refs/` and generated dumps are
 ignored and must not be committed.
 
-To refresh the release payload after local changes:
+To smoke-test a local build into `dist/` after changes:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\prepare-release.ps1
@@ -109,8 +116,10 @@ To build the MSI locally:
 powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 ```
 
-The GitHub workflow packages the committed `dist/KingdomMod*.dll` files into an
-MSI on `v*` tags or manual runs. It does not compile against game-derived refs.
+The GitHub workflow packages source plus installer support into an MSI on `v*`
+tags or manual runs. The MSI includes the source payload, patched Cpp2IL,
+MelonLoader, and a pinned .NET SDK; it builds DLLs on the target machine after
+generating local refs from that user's game install.
 
 ## Writing Mods
 

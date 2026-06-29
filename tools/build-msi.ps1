@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-  Builds the KingdomMod MSI from the committed dist/ payload.
+  Builds the KingdomMod MSI with source, tool, and setup-time SDK payloads.
 #>
 param(
     [string]$Version,
     [string]$MelonLoaderVersion = 'v0.7.3',
+    [string]$DotNetSdkVersion = '8.0.421',
     [string]$OutputDir
 )
 
@@ -12,11 +13,12 @@ param(
 
 $root = Get-RepoRoot
 $dotnet = Resolve-Dotnet -RequireSdk
-$dist = Join-Path $root 'dist'
 $installer = Join-Path $root 'installer'
 $artifacts = if ($OutputDir) { $OutputDir } else { Join-Path $root 'artifacts\installer' }
 $payload = Join-Path $artifacts 'payload'
 $support = Join-Path $payload '.kingdommod-installer'
+$sourcePayload = Join-Path $support 'source'
+$patchedCpp2IlPayload = Join-Path $support 'patched-cpp2il'
 $generated = Join-Path $artifacts 'generated'
 
 if (-not $Version) {
@@ -31,29 +33,8 @@ if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
     throw "MSI version must be numeric, for example 0.1.0. Got '$Version'."
 }
 
-$required = @(
-    'KingdomMod.Loader.dll',
-    'KingdomMod.Api.dll',
-    'KingdomMod.Examples.AnyMount.dll',
-    'KingdomMod.Examples.AnyTrees.dll',
-    'KingdomMod.Examples.BalanceExtras.dll',
-    'KingdomMod.Examples.BalanceTweaks.dll',
-    'KingdomMod.Examples.ChallengeDumper.dll',
-    'KingdomMod.Examples.GameplayTweaks.dll',
-    'KingdomMod.Examples.HudOverlay.dll',
-    'KingdomMod.Examples.ReskinPack.dll',
-    'KingdomMod.Examples.SandboxConsole.dll',
-    'KingdomMod.Examples.SpeedHotkeys.dll',
-    'KingdomMod.Examples.SpeedTweaks.dll'
-)
-foreach ($name in $required) {
-    if (-not (Test-Path (Join-Path $dist $name))) {
-        throw "Missing dist payload file: $name. Run tools/prepare-release.ps1 locally and commit dist/."
-    }
-}
-
 Remove-Item -LiteralPath $artifacts -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $support, $generated | Out-Null
+New-Item -ItemType Directory -Force -Path $support, $sourcePayload, $patchedCpp2IlPayload, $generated | Out-Null
 
 $headers = @{ 'User-Agent' = 'kingdommod-msi-builder' }
 $assetName = 'MelonLoader.x64.zip'
@@ -62,20 +43,112 @@ $zip = Join-Path $support $assetName
 Write-Host "Downloading $assetName ($MelonLoaderVersion)..."
 Invoke-WebRequest -Uri $downloadUrl -OutFile $zip -Headers $headers
 
-Copy-Item -LiteralPath (Join-Path $installer 'scripts\InstallMelonLoader.ps1') -Destination $support -Force
+$dotnetSdkAssetName = "dotnet-sdk-$DotNetSdkVersion-win-x64.zip"
+$dotnetSdkUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$DotNetSdkVersion/$dotnetSdkAssetName"
+$dotnetSdkZip = Join-Path $support $dotnetSdkAssetName
+Write-Host "Downloading $dotnetSdkAssetName..."
+Invoke-WebRequest -Uri $dotnetSdkUrl -OutFile $dotnetSdkZip -Headers $headers
+
+Copy-Item -LiteralPath (Join-Path $installer 'scripts\BuildAndInstallKingdomMod.ps1') -Destination $support -Force
 Copy-Item -LiteralPath (Join-Path $installer 'scripts\UninstallMelonLoader.ps1') -Destination $support -Force
 Set-Content -LiteralPath (Join-Path $support 'kingdommod-msi.txt') -Value "KingdomMod $Version installer support files." -Encoding UTF8
 
-$modsPayload = Join-Path $payload 'Mods'
-New-Item -ItemType Directory -Force -Path $modsPayload | Out-Null
-Get-ChildItem -LiteralPath $dist -File -Filter 'KingdomMod*.dll' |
-    Copy-Item -Destination $modsPayload -Force
+Write-Host 'Copying source payload for on-machine build...'
+$sourceFiles = @()
+if (Test-Path (Join-Path $root '.git')) {
+    $sourceFiles = & git -C $root ls-files
+} else {
+    $sourceFiles = Get-ChildItem -LiteralPath $root -Recurse -File |
+        ForEach-Object { [System.IO.Path]::GetRelativePath($root, $_.FullName) }
+}
+
+$sourceFiles = $sourceFiles | Where-Object {
+    $_ -notmatch '^(dist|installer|\.github|docs|packs)/' -and
+    $_ -notmatch '(^|/)(bin|obj)/' -and
+    $_ -notmatch '\.dll$' -and
+    $_ -notmatch '^\.(gitignore|gitattributes)$' -and
+    $_ -notmatch '^LICENSE$'
+}
+
+foreach ($rel in $sourceFiles) {
+    $src = Join-Path $root $rel
+    if (-not (Test-Path -LiteralPath $src)) { continue }
+    $dst = Join-Path $sourcePayload ($rel -replace '/', '\')
+    New-Item -ItemType Directory -Force -Path (Split-Path $dst -Parent) | Out-Null
+    Copy-Item -LiteralPath $src -Destination $dst -Force
+}
+
+foreach ($requiredSource in @('KingdomMod.sln','Directory.Build.props','src\KingdomMod.Loader\KingdomMod.Loader.csproj','src\KingdomMod.Api\KingdomMod.Api.csproj')) {
+    if (-not (Test-Path (Join-Path $sourcePayload $requiredSource))) {
+        throw "Source payload is missing '$requiredSource'."
+    }
+}
+
+Write-Host 'Copying patched Cpp2IL payload...'
+$committedCpp2IlSource = Join-Path $installer 'patched-cpp2il\Cpp2IL'
+$committedCpp2IlPluginSource = Join-Path $installer 'patched-cpp2il\Plugins'
+$localCpp2ilSource = Join-Path $root 'build\_tools\Cpp2IL-src\Cpp2IL\bin\Release\net8.0'
+$localCpp2ilPluginSource = Join-Path $root 'build\_tools\Cpp2IL-src\Cpp2IL.Plugin.StrippedCodeRegSupport\bin\Release\net8.0'
+$cpp2ilSource = if (Test-Path (Join-Path $committedCpp2IlSource 'Cpp2IL.exe')) { $committedCpp2IlSource } else { $localCpp2ilSource }
+$cpp2ilPluginSource = if (Test-Path $committedCpp2IlPluginSource) { $committedCpp2IlPluginSource } else { $localCpp2ilPluginSource }
+if (-not (Test-Path (Join-Path $cpp2ilSource 'Cpp2IL.exe'))) {
+    throw "Patched Cpp2IL payload is missing. Restore installer/patched-cpp2il or run tools/install.ps1 locally before building the MSI."
+}
+New-Item -ItemType Directory -Force -Path (Join-Path $patchedCpp2IlPayload 'Cpp2IL') | Out-Null
+Copy-Item -Path (Join-Path $cpp2ilSource '*') -Destination (Join-Path $patchedCpp2IlPayload 'Cpp2IL') -Recurse -Force
+if (Test-Path $cpp2ilPluginSource) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $patchedCpp2IlPayload 'Plugins') | Out-Null
+    Get-ChildItem -LiteralPath $cpp2ilPluginSource -File -Filter 'Cpp2IL.Plugin.StrippedCodeRegSupport.*' -ErrorAction SilentlyContinue |
+        Copy-Item -Destination (Join-Path $patchedCpp2IlPayload 'Plugins') -Force
+}
 
 function Convert-ToWixId {
     param([Parameter(Mandatory=$true)][string]$Text)
     $id = [regex]::Replace($Text, '[^A-Za-z0-9_]', '_')
     if ($id -notmatch '^[A-Za-z_]') { $id = "_$id" }
+    if ($id.Length -gt 60) {
+        $md5 = [System.Security.Cryptography.MD5]::Create()
+        try {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+            $hash = -join (($md5.ComputeHash($bytes) | Select-Object -First 4) | ForEach-Object { $_.ToString('x2') })
+        } finally {
+            $md5.Dispose()
+        }
+        $id = $id.Substring(0, 51) + '_' + $hash
+    }
     return $id
+}
+
+function Get-RelativePath {
+    param(
+        [Parameter(Mandatory=$true)][string]$Root,
+        [Parameter(Mandatory=$true)][string]$Path
+    )
+
+    $rootFull = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\') + '\'
+    $pathFull = (Resolve-Path -LiteralPath $Path).Path
+    if (-not $pathFull.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path '$pathFull' is not under '$rootFull'."
+    }
+    return $pathFull.Substring($rootFull.Length)
+}
+
+function Add-WixDirectoryTree {
+    param(
+        [Parameter(Mandatory=$true)][System.Collections.Generic.List[string]]$Fragments,
+        [Parameter(Mandatory=$true)][string]$Root,
+        [Parameter(Mandatory=$true)][string]$Directory,
+        [Parameter(Mandatory=$true)][int]$Indent
+    )
+
+    foreach ($child in Get-ChildItem -LiteralPath $Directory -Directory | Sort-Object Name) {
+        $relative = Get-RelativePath -Root $Root -Path $child.FullName
+        $id = Convert-ToWixId "dir_$relative"
+        $pad = ' ' * $Indent
+        $Fragments.Add("$pad<Directory Id=""$id"" Name=""$($child.Name)"">")
+        Add-WixDirectoryTree -Fragments $Fragments -Root $Root -Directory $child.FullName -Indent ($Indent + 2)
+        $Fragments.Add("$pad</Directory>")
+    }
 }
 
 $componentRefs = New-Object System.Collections.Generic.List[string]
@@ -83,28 +156,32 @@ $fragments = New-Object System.Collections.Generic.List[string]
 $fragments.Add('<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">')
 $fragments.Add('  <Fragment>')
 $fragments.Add('    <DirectoryRef Id="INSTALLFOLDER">')
-$fragments.Add('      <Directory Id="ModsFolder" Name="Mods" />')
-$fragments.Add('      <Directory Id="InstallerSupportFolder" Name=".kingdommod-installer" />')
+$fragments.Add('      <Directory Id="InstallerSupportFolder" Name=".kingdommod-installer">')
+Add-WixDirectoryTree -Fragments $fragments -Root $support -Directory $support -Indent 8
+$fragments.Add('      </Directory>')
 $fragments.Add('    </DirectoryRef>')
 $fragments.Add('  </Fragment>')
 $fragments.Add('  <Fragment>')
-$fragments.Add('    <DirectoryRef Id="ModsFolder">')
-foreach ($file in Get-ChildItem -LiteralPath $modsPayload -File | Sort-Object Name) {
-    $id = Convert-ToWixId "cmp_mod_$($file.Name)"
-    $fileId = Convert-ToWixId "fil_mod_$($file.Name)"
-    $source = $file.FullName.Replace('\', '\\')
-    $fragments.Add("      <Component Id=""$id"" Guid=""*""><File Id=""$fileId"" Source=""$source"" KeyPath=""yes"" /></Component>")
-    $componentRefs.Add($id)
-}
-$fragments.Add('    </DirectoryRef>')
 $fragments.Add('    <DirectoryRef Id="InstallerSupportFolder">')
-foreach ($file in Get-ChildItem -LiteralPath $support -File | Sort-Object Name) {
-    $id = Convert-ToWixId "cmp_support_$($file.Name)"
-    $fileId = Convert-ToWixId "fil_support_$($file.Name)"
-    if ($file.Name -eq 'InstallMelonLoader.ps1') { $fileId = 'InstallMelonLoaderScript' }
-    if ($file.Name -eq 'UninstallMelonLoader.ps1') { $fileId = 'UninstallMelonLoaderScript' }
+foreach ($file in Get-ChildItem -LiteralPath $support -File -Recurse | Sort-Object FullName) {
+    $relative = Get-RelativePath -Root $support -Path $file.FullName
+    $dirId = 'InstallerSupportFolder'
+    $parentRel = Split-Path $relative -Parent
+    if ($parentRel) {
+        $parts = $parentRel -split '[\\/]'
+        $currentPath = $support
+        foreach ($part in $parts) {
+            $currentPath = Join-Path $currentPath $part
+            $dirId = Convert-ToWixId "dir_$(Get-RelativePath -Root $support -Path $currentPath)"
+        }
+    }
+
+    $id = Convert-ToWixId "cmp_support_$relative"
+    $fileId = Convert-ToWixId "fil_support_$relative"
+    if ($relative -eq 'BuildAndInstallKingdomMod.ps1') { $fileId = 'BuildAndInstallScript' }
+    if ($relative -eq 'UninstallMelonLoader.ps1') { $fileId = 'UninstallMelonLoaderScript' }
     $source = $file.FullName.Replace('\', '\\')
-    $fragments.Add("      <Component Id=""$id"" Guid=""*""><File Id=""$fileId"" Source=""$source"" KeyPath=""yes"" /></Component>")
+    $fragments.Add("      <Component Id=""$id"" Directory=""$dirId"" Guid=""*""><File Id=""$fileId"" Source=""$source"" KeyPath=""yes"" /></Component>")
     $componentRefs.Add($id)
 }
 $fragments.Add('    </DirectoryRef>')

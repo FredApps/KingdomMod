@@ -12,13 +12,17 @@ Install:
 
 1. Run the MSI.
 2. Confirm or browse to your Kingdom Two Crowns folder.
-3. Finish the installer.
-4. Launch Kingdom Two Crowns normally.
-5. Press **F1** to open the KingdomMod console.
+3. Let the installer launch Kingdom Two Crowns once if references must be
+   generated. This can take several minutes the first time.
+4. Finish the installer.
+5. Launch Kingdom Two Crowns normally.
+6. Press **F1** to open the KingdomMod console.
 
-The installer copies KingdomMod into `<KTC>\Mods`. If MelonLoader is not already
-installed, the MSI installs the bundled MelonLoader runtime into the game
-folder. If MelonLoader is already present, the installer leaves it alone.
+The MSI installs MelonLoader if needed, installs KingdomMod's patched Cpp2IL,
+generates local interop references from your own game install, extracts a
+bundled .NET SDK for setup-time compilation, builds KingdomMod DLLs on your
+machine, and copies those DLLs into `<KTC>\Mods`. If MelonLoader is already
+present, the installer leaves it owned by you.
 
 ## Uninstall
 
@@ -78,8 +82,10 @@ your own artwork.
 
 ## Developer Setup
 
-Developer setup is only needed if you want to build KingdomMod or write mods.
-Players should use the MSI.
+Normal install and developer setup now share the same underlying build model:
+KingdomMod DLLs are compiled on the machine that owns the game. The MSI does
+that automatically for players with its bundled setup-time SDK. Clone the repo
+only if you want to edit source, write mods, or prepare a release.
 
 Prerequisites:
 
@@ -187,8 +193,11 @@ console controls, Harmony patches, pack APIs, and SDK member tables.
   exists so future launches skip the flaky lookup.
 - **`UnityDependencies_<ver>.zip does not Exist!`:** the first interop
   generation must run online. Run `tools/install.ps1` once.
-- **`.NET 8 runtime missing`:** install the .NET 8 SDK/runtime, then rerun
-  developer setup.
+- **MSI install fails during build:** open
+  `%TEMP%\KingdomModMsi-BuildAndInstall.log`. Normal installs use the SDK
+  bundled in the MSI, so a system-wide .NET install is not required.
+- **Developer build cannot find .NET:** install the .NET 8 SDK or newer, then
+  rerun developer setup.
 - **A mod's F-key does nothing:** open F1 and check Shortcuts. If the mod is not
   listed, its DLL did not load; check `MelonLoader/Latest.log`.
 
@@ -203,7 +212,7 @@ build, and re-dumps the class surface. Rebuild your mods afterwards.
 
 ## Release Maintainer Notes
 
-Refresh the committable release payload locally:
+Smoke-test a local build into ignored `dist/`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\prepare-release.ps1
@@ -215,9 +224,10 @@ Build an MSI locally:
 powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 ```
 
-GitHub Actions packages the committed `dist/KingdomMod*.dll` files into an MSI
-on `v*` tags and manual workflow runs. It intentionally does not generate
-`refs/` or compile against game-derived files.
+GitHub Actions packages the source tree and installer support into an MSI on
+`v*` tags and manual workflow runs. The resulting MSI generates `refs/` and
+builds KingdomMod DLLs on the target machine with the SDK bundled in the MSI;
+GitHub never receives or builds against game-derived files.
 
 ## Safety Notes
 
