@@ -104,7 +104,7 @@
 
     <Property Id="INSTALLFOLDER" Secure="yes" />
 
-    <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromPreviousKingdomMod" Value="[PREVIOUSKINGDOMMODINSTALLFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="PREVIOUSKINGDOMMODINSTALLFOLDER AND NOT Installed" />
+    <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromPreviousKingdomMod" Value="[PREVIOUSKINGDOMMODINSTALLFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="PREVIOUSKINGDOMMODINSTALLFOLDER" />
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteamHkcuApp" Value="[STEAMKINGDOMTWOCROWNSFOLDER_HKCU_RAW]" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMKINGDOMTWOCROWNSFOLDER_HKCU AND NOT Installed" />
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteam" Value="[STEAMKINGDOMTWOCROWNSFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMKINGDOMTWOCROWNSFOLDER AND NOT Installed" />
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteamHkcuDefault" Value="[STEAMINSTALLFOLDER_HKCU_RAW]\steamapps\common\Kingdom Two Crowns" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMDEFAULTKINGDOMTWOCROWNSFOLDER_HKCU AND NOT Installed" />
@@ -231,7 +231,7 @@
       Execute="deferred"
       Impersonate="yes"
       Return="check"
-      ExeCommand="powershell.exe [BuildAndInstallKingdomMod]" />
+      ExeCommand="[System64Folder]WindowsPowerShell\v1.0\powershell.exe [BuildAndInstallKingdomMod]" />
 
     <CustomAction
       Id="UninstallOwnedMelonLoader"
@@ -239,7 +239,7 @@
       Execute="deferred"
       Impersonate="no"
       Return="check"
-      ExeCommand="powershell.exe [UninstallOwnedMelonLoader]" />
+      ExeCommand="[System64Folder]WindowsPowerShell\v1.0\powershell.exe [UninstallOwnedMelonLoader]" />
 
     <CustomAction
       Id="SetBuildAndInstallKingdomModData"
