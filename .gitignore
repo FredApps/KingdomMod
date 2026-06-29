@@ -45,6 +45,7 @@ artifacts/
 # machine; dist/ is only a local convenience cache.
 dist/*
 !dist/.gitkeep
+KingdomModMsi-BuildAndInstall.log
 
 # OS / editor
 .claude/

@@ -20,6 +20,12 @@ tree behavior, and sprite replacement.
 5. Launch the game normally.
 6. Press **F1** in-game to open the KingdomMod console.
 
+If Windows SmartScreen blocks the installer, choose **More info** and then
+**Run anyway**. This warning appears because KingdomMod's MSI is a new,
+community-built installer that is not code-signed with an established publisher
+certificate yet; SmartScreen reputation is based on signing and download
+history, not just the contents of the installer.
+
 The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
 patched Cpp2IL from source on your machine, generates local references from
 your own game install, extracts a bundled .NET SDK for setup-time compilation,

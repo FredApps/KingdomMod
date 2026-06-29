@@ -57,10 +57,16 @@ function Set-TargetFrameworkText {
 
 function Ensure-Cpp2IlSource {
     $project = Join-Path $srcRoot 'Cpp2IL\Cpp2IL.csproj'
+    $tools = Join-Path $root 'build\_tools'
+
+    # Keep KingdomMod's Directory.Build.props from leaking into downloaded
+    # third-party source. Cpp2IL must build before refs/ exists in the MSI flow.
+    $propsBoundary = Join-Path $tools 'Directory.Build.props'
+    New-Item -ItemType Directory -Force -Path $tools | Out-Null
+    Set-Content -LiteralPath $propsBoundary -Value '<Project />' -Encoding UTF8 -NoNewline
+
     if (Test-Path $project) { return }
 
-    $tools = Join-Path $root 'build\_tools'
-    New-Item -ItemType Directory -Force -Path $tools | Out-Null
     $zip = Join-Path $tools "Cpp2IL-$Cpp2IlVersion.zip"
     $url = "https://github.com/SamboyCoding/Cpp2IL/archive/refs/tags/$Cpp2IlVersion.zip"
     Write-Host "Downloading Cpp2IL source ($Cpp2IlVersion)..."
