@@ -179,6 +179,56 @@ function Enable-BundledDotnetSdk {
     $env:PATH = "$dotnetRoot;$env:PATH"
 }
 
+function Test-DotnetRuntimeMajor {
+    param(
+        [Parameter(Mandatory=$true)][string]$DotnetExe,
+        [Parameter(Mandatory=$true)][int]$Major
+    )
+
+    if (-not (Test-Path -LiteralPath $DotnetExe)) { return $false }
+
+    try {
+        $runtimes = & $DotnetExe --list-runtimes 2>$null
+        return [bool]($runtimes | Where-Object { $_ -match "^Microsoft\.NETCore\.App\s+$Major\." })
+    } catch {
+        return $false
+    }
+}
+
+function Ensure-MelonLoaderDotnet8 {
+    param(
+        [Parameter(Mandatory=$true)][string]$GameDir,
+        [Parameter(Mandatory=$true)][string]$SupportDir,
+        [Parameter(Mandatory=$true)][string]$DotNetSdkVersion
+    )
+
+    $melonDotnet = Join-Path $GameDir 'MelonLoader\Dependencies\dotnet'
+    $melonDotnetExe = Join-Path $melonDotnet 'dotnet.exe'
+    if (Test-DotnetRuntimeMajor -DotnetExe $melonDotnetExe -Major 8) {
+        Write-Host 'MelonLoader private .NET runtime already supports .NET 8.'
+        return
+    }
+
+    $setupDotnet = Join-Path $SupportDir 'dotnet'
+    $setupDotnetExe = Join-Path $setupDotnet 'dotnet.exe'
+    if (-not (Test-DotnetRuntimeMajor -DotnetExe $setupDotnetExe -Major 8)) {
+        Install-SetupDotnetSdk -SupportDir $SupportDir -DotNetSdkVersion $DotNetSdkVersion
+    }
+
+    if (-not (Test-DotnetRuntimeMajor -DotnetExe $setupDotnetExe -Major 8)) {
+        throw "Setup-time .NET SDK does not contain a .NET 8 runtime: $setupDotnet"
+    }
+
+    Write-Host 'Installing .NET 8 runtime into MelonLoader private dependency folder...'
+    New-Item -ItemType Directory -Force -Path $melonDotnet | Out-Null
+    Get-ChildItem -LiteralPath $setupDotnet -Force |
+        Copy-Item -Destination $melonDotnet -Recurse -Force
+
+    if (-not (Test-DotnetRuntimeMajor -DotnetExe $melonDotnetExe -Major 8)) {
+        throw "MelonLoader private .NET runtime still does not report .NET 8 after install: $melonDotnet"
+    }
+}
+
 function Stop-DotnetBuildServers {
     param([Parameter(Mandatory=$true)][string]$SupportDir)
 
@@ -471,6 +521,23 @@ function Clear-InteropGenerationState {
     }
 }
 
+function Write-MelonLoaderLogTail {
+    param(
+        [Parameter(Mandatory=$true)][string]$GameDir,
+        [int]$Tail = 120
+    )
+
+    $log = Join-Path $GameDir 'MelonLoader\Latest.log'
+    if (-not (Test-Path -LiteralPath $log)) {
+        Write-Host "MelonLoader Latest.log was not found: $log"
+        return
+    }
+
+    Write-Host "Last $Tail lines from MelonLoader Latest.log:"
+    Get-Content -LiteralPath $log -Tail $Tail -ErrorAction SilentlyContinue |
+        ForEach-Object { Write-Host "  $_" }
+}
+
 function Test-UnityDependenciesReady {
     param([Parameter(Mandatory=$true)][string]$GameDir)
 
@@ -578,6 +645,12 @@ function Invoke-InteropSetupLaunch {
 
             if ($log -and (Test-Path -LiteralPath $log)) {
                 $tail = (Get-Content -LiteralPath $log -Tail 200 -ErrorAction SilentlyContinue) -join "`n"
+                if ($tail -match 'You must install or update \.NET to run this application' -and
+                    $tail -match "App:\s+.*\\Cpp2IL\\Cpp2IL\.exe" -and
+                    $tail -match "Framework:\s+'Microsoft\.NETCore\.App', version '8\.0\.0'") {
+                    throw 'MelonLoader could not run patched Cpp2IL because its private .NET runtime is missing .NET 8. The installer attempted to install that runtime; see the KingdomMod installer log and MelonLoader Latest.log for details.'
+                }
+
                 if ($tail -match 'No Support Module Loaded!' -or
                     $tail -match 'Assembly is up to date\. No Generation Needed\.' -or
                     $tail -match 'Loading Mods\.\.\.\s+0 Mods loaded\.') {
@@ -631,6 +704,7 @@ function Generate-Refs {
         }
 
         if (-not $generated) {
+            Write-MelonLoaderLogTail -GameDir $GameDir
             throw "Interop assemblies were not generated within $LaunchTimeoutSec seconds. The setup pass was stopped automatically; see $logPath and the MelonLoader Latest.log for details."
         }
     }
@@ -721,6 +795,8 @@ if ($script:IsUpgradeInstall -and (Test-GeneratedInteropReady -GameDir $game)) {
     $script:InstallStage = 'building and installing patched Cpp2IL'
     Install-PatchedCpp2IL -GameDir $game -SourceRoot $sourceRoot
 }
+$script:InstallStage = 'installing MelonLoader .NET 8 runtime'
+Ensure-MelonLoaderDotnet8 -GameDir $game -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
 $script:InstallStage = 'generating IL2CPP references'
 Generate-Refs -GameDir $game -SourceRoot $sourceRoot -LaunchTimeoutSec $LaunchTimeoutSec
 
