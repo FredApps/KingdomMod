@@ -89,7 +89,8 @@ function Resolve-GameDir {
 function Resolve-Dotnet {
     param(
         [Parameter(Mandatory=$true)][string]$SupportDir,
-        [switch]$AllowMissing
+        [switch]$AllowMissing,
+        [int]$MinimumSdkMajor = 0
     )
 
     $candidates = [System.Collections.Generic.List[string]]::new()
@@ -103,12 +104,33 @@ function Resolve-Dotnet {
         if (-not $candidate -or -not (Test-Path $candidate)) { continue }
         try {
             $sdks = & $candidate --list-sdks 2>$null
-            if ($sdks | Where-Object { $_ -match '\S' }) { return $candidate }
+            if (-not ($sdks | Where-Object { $_ -match '\S' })) { continue }
+            if ($MinimumSdkMajor -gt 0 -and -not (Test-DotnetSdkMajor -DotnetExe $candidate -MinimumMajor $MinimumSdkMajor)) { continue }
+            return $candidate
         } catch { }
     }
 
     if ($AllowMissing) { return $null }
     throw 'No .NET SDK found. The setup-time SDK could not be used; rerun the MSI or check the KingdomMod installer log.'
+}
+
+function Test-DotnetSdkMajor {
+    param(
+        [Parameter(Mandatory=$true)][string]$DotnetExe,
+        [Parameter(Mandatory=$true)][int]$MinimumMajor
+    )
+
+    if (-not (Test-Path -LiteralPath $DotnetExe)) { return $false }
+
+    try {
+        $sdks = & $DotnetExe --list-sdks 2>$null
+        foreach ($sdk in @($sdks)) {
+            if ($sdk -match '^(\d+)\.' -and ([int]$Matches[1]) -ge $MinimumMajor) { return $true }
+        }
+        return $false
+    } catch {
+        return $false
+    }
 }
 
 function Invoke-DownloadFile {
@@ -151,7 +173,14 @@ function Install-SetupDotnetSdk {
     )
 
     $dotnetExe = Join-Path $SupportDir 'dotnet\dotnet.exe'
-    if (Test-Path $dotnetExe) { return }
+    $requiredSdkMajor = [int](($DotNetSdkVersion -split '\.')[0])
+    if (Test-Path $dotnetExe) {
+        if (Test-DotnetSdkMajor -DotnetExe $dotnetExe -MinimumMajor $requiredSdkMajor) { return }
+
+        $staleDotnet = Split-Path $dotnetExe -Parent
+        Write-Host "Removing stale setup-time .NET SDK that does not satisfy .NET ${requiredSdkMajor}: $staleDotnet"
+        Remove-Item -LiteralPath $staleDotnet -Recurse -Force -ErrorAction Stop
+    }
 
     $assetName = "dotnet-sdk-$DotNetSdkVersion-win-x64.zip"
     $sdkZip = Join-Path $SupportDir $assetName
@@ -763,12 +792,13 @@ if (-not (Test-Path (Join-Path $sourceRoot 'KingdomMod.sln'))) {
     throw "Missing bundled KingdomMod source payload: $sourceRoot"
 }
 
-$script:InstallStage = 'resolving .NET SDK'
-$dotnet = Resolve-Dotnet -SupportDir $support -AllowMissing
+$script:InstallStage = 'resolving .NET 8 SDK'
+$dotnet = Resolve-Dotnet -SupportDir $support -AllowMissing -MinimumSdkMajor 8
 if (-not $dotnet) {
-    $script:InstallStage = 'downloading setup-time .NET SDK'
+    $script:InstallStage = 'downloading setup-time .NET 8 SDK'
     Install-SetupDotnetSdk -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
     Enable-BundledDotnetSdk -SupportDir $support
+    $dotnet = Resolve-Dotnet -SupportDir $support -MinimumSdkMajor 8
 } elseif (Test-Path (Join-Path $support 'dotnet\dotnet.exe')) {
     Enable-BundledDotnetSdk -SupportDir $support
 }
