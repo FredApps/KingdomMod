@@ -260,6 +260,12 @@ needed and pinned Cpp2IL source during install. KingdomMod DLLs are built after
 the installer generates `refs/` from that user's game install. GitHub never
 receives or builds against game-derived files.
 
+After the MSI workflow finishes for a tag, edit the GitHub Release title and
+description before sharing it. Use the previous release as the style reference,
+for example `KingdomMod v0.2.7 - Installer runtime cache fix`, and include a
+short `What's changed` list that names the installer/runtime fixes users should
+care about.
+
 ## Safety Notes
 
 - Mods can desync co-op and may interfere with PlayFab cloud saves.
