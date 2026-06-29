@@ -2,18 +2,66 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$GameDir,
 
+    [string]$DefenderExclusionAccepted,
+
     [int]$LaunchTimeoutSec = 900
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+$script:CleanupGameDir = $null
+$script:CleanupSupportDir = $null
+$script:CleanupAddedDefenderExclusion = $false
+$script:CleanupInstalledMelonLoader = $false
+$script:CleanupCopiedDlls = [System.Collections.Generic.List[string]]::new()
+
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
 trap {
     Write-Host "KingdomMod MSI install failed: $($_.Exception.Message)"
+    try { Invoke-InstallRollback } catch { Write-Host "KingdomMod rollback failed: $($_.Exception.Message)" }
     try { Stop-Transcript | Out-Null } catch { }
     exit 1
+}
+
+function Invoke-InstallRollback {
+    Write-Host 'Rolling back KingdomMod install changes...'
+
+    foreach ($dll in @($script:CleanupCopiedDlls)) {
+        if ($dll -and (Test-Path -LiteralPath $dll)) {
+            Remove-Item -LiteralPath $dll -Force -ErrorAction SilentlyContinue
+            Write-Host "  Removed copied DLL: $dll"
+        }
+    }
+
+    if ($script:CleanupInstalledMelonLoader -and $script:CleanupGameDir) {
+        foreach ($path in @(
+            (Join-Path $script:CleanupGameDir 'MelonLoader'),
+            (Join-Path $script:CleanupGameDir 'version.dll'),
+            (Join-Path $script:CleanupGameDir 'dobby.dll'),
+            (Join-Path $script:CleanupGameDir 'NOTICE.txt')
+        )) {
+            if (Test-Path -LiteralPath $path) {
+                Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue
+                Write-Host "  Removed installer-owned MelonLoader path: $path"
+            }
+        }
+    }
+
+    if ($script:CleanupSupportDir -and (Test-Path -LiteralPath $script:CleanupSupportDir)) {
+        Remove-Item -LiteralPath $script:CleanupSupportDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  Removed installer support folder: $script:CleanupSupportDir"
+    }
+
+    if ($script:CleanupAddedDefenderExclusion -and $script:CleanupGameDir) {
+        try {
+            Remove-MpPreference -ExclusionPath $script:CleanupGameDir -ErrorAction Stop
+            Write-Host "  Removed Windows Defender exclusion: $script:CleanupGameDir"
+        } catch {
+            Write-Host "  Could not remove Windows Defender exclusion automatically: $($_.Exception.Message)"
+        }
+    }
 }
 
 function Resolve-GameDir {
@@ -75,6 +123,62 @@ function Enable-BundledDotnetSdk {
 
     $env:DOTNET_ROOT = $dotnetRoot
     $env:PATH = "$dotnetRoot;$env:PATH"
+}
+
+function Add-DefenderExclusion {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    $gamePath = (Resolve-Path -LiteralPath $GameDir).Path.TrimEnd('\')
+
+    try {
+        $existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
+        if ($existing) {
+            $normalized = @($existing | ForEach-Object { $_.TrimEnd('\') })
+            if ($normalized -contains $gamePath) {
+                Write-Host "Windows Defender exclusion already present: $gamePath"
+                return
+            }
+        }
+    } catch {
+        Write-Host "Could not read current Windows Defender exclusions: $($_.Exception.Message)"
+    }
+
+    Write-Host "Adding required Windows Defender exclusion: $gamePath"
+    Write-Host 'KingdomMod builds unsigned mod DLLs locally. Without this exclusion, Defender can quarantine them before MelonLoader can run them.'
+
+    $escapedGamePath = $gamePath.Replace("'", "''")
+    $command = "Add-MpPreference -ExclusionPath '$escapedGamePath'"
+    $isAdmin = ([System.Security.Principal.WindowsPrincipal]([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if ($isAdmin) {
+        Invoke-Expression $command
+        $script:CleanupAddedDefenderExclusion = $true
+    } else {
+        $tmpPs1 = Join-Path ([System.IO.Path]::GetTempPath()) "kingdommod-defender-$([guid]::NewGuid()).ps1"
+        Set-Content -LiteralPath $tmpPs1 -Value $command -Encoding UTF8
+        try {
+            $proc = Start-Process -FilePath 'powershell.exe' `
+                -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', $tmpPs1) `
+                -Verb RunAs -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                throw "The elevated Defender exclusion command exited with code $($proc.ExitCode)."
+            }
+            $script:CleanupAddedDefenderExclusion = $true
+        } finally {
+            Remove-Item -LiteralPath $tmpPs1 -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    try {
+        $existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
+        $normalized = @($existing | ForEach-Object { $_.TrimEnd('\') })
+        if ($normalized -contains $gamePath) {
+            Write-Host "Windows Defender exclusion added: $gamePath"
+            return
+        }
+    } catch { }
+
+    throw 'Windows Defender exclusion was not added. KingdomMod installation cannot continue without it.'
 }
 
 function Set-OfflineGeneration {
@@ -176,12 +280,19 @@ function Generate-Refs {
 }
 
 $game = Resolve-GameDir -Path $GameDir
+$script:CleanupGameDir = $game
 $exe = Join-Path $game 'KingdomTwoCrowns.exe'
 if (-not (Test-Path $exe)) {
     throw "The selected folder is not a Kingdom Two Crowns install: $game"
 }
 
+if ($DefenderExclusionAccepted -ne '1') {
+    throw 'Windows Defender exclusion consent was not provided. KingdomMod installation cannot continue.'
+}
+Add-DefenderExclusion -GameDir $game
+
 $support = Join-Path $game '.kingdommod-installer'
+$script:CleanupSupportDir = $support
 $sourceRoot = Join-Path $support 'source'
 $zip = Join-Path $support 'MelonLoader.x64.zip'
 if (-not (Test-Path $zip)) {
@@ -203,6 +314,7 @@ if ((Test-Path $mlDir) -or (Test-Path $versionDll)) {
 } else {
     Write-Host 'Installing bundled MelonLoader...'
     Expand-Archive -LiteralPath $zip -DestinationPath $game -Force
+    $script:CleanupInstalledMelonLoader = $true
     Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI installed MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
 }
 
@@ -228,8 +340,14 @@ $dlls += Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'examples') -Director
 
 foreach ($dll in $dlls) {
     if (-not (Test-Path $dll)) { throw "Expected build output missing: $dll" }
-    Copy-Item -LiteralPath $dll -Destination $modsDir -Force
+    $targetDll = Join-Path $modsDir (Split-Path $dll -Leaf)
+    Copy-Item -LiteralPath $dll -Destination $targetDll -Force
+    $script:CleanupCopiedDlls.Add($targetDll) | Out-Null
 }
 
 Write-Host "KingdomMod built and installed. DLLs copied: $($dlls.Count)"
+$script:CleanupCopiedDlls.Clear()
+$script:CleanupInstalledMelonLoader = $false
+$script:CleanupAddedDefenderExclusion = $false
+$script:CleanupSupportDir = $null
 try { Stop-Transcript | Out-Null } catch { }

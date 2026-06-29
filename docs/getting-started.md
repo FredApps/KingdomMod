@@ -12,11 +12,12 @@ Install:
 
 1. Run the MSI.
 2. Confirm or browse to your Kingdom Two Crowns folder.
-3. Let the installer launch Kingdom Two Crowns once if references must be
+3. Enable the required Windows Defender exclusion checkbox when prompted.
+4. Let the installer launch Kingdom Two Crowns once if references must be
    generated. This can take several minutes the first time.
-4. Finish the installer.
-5. Launch Kingdom Two Crowns normally.
-6. Press **F1** to open the KingdomMod console.
+5. Finish the installer.
+6. Launch Kingdom Two Crowns normally.
+7. Press **F1** to open the KingdomMod console.
 
 If Windows SmartScreen blocks the installer, choose **More info** and then
 **Run anyway**. This warning appears because KingdomMod's MSI is a new,
@@ -30,6 +31,12 @@ from your own game install, extracts a bundled .NET SDK for setup-time
 compilation, builds KingdomMod DLLs locally, and copies those DLLs into
 `<KTC>\Mods`. If MelonLoader is already present, the installer leaves it owned
 by you.
+
+The Defender exclusion is required because KingdomMod builds modified mod DLLs
+locally against your own Kingdom Two Crowns install. Those DLLs cannot be
+signed ahead of time, and Windows Defender can quarantine unsigned generated
+DLLs before MelonLoader can run them. If you do not agree to the exclusion, the
+installer exits without installing KingdomMod.
 
 ## Uninstall
 

@@ -1,5 +1,4 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
     Name="KingdomMod"
     Manufacturer="KingdomMod contributors"
@@ -11,6 +10,8 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of KingdomMod is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
+    <Property Id="DEFENDEREXCLUSIONACCEPTED" Secure="yes" />
+
     <Property Id="INSTALLFOLDER">
       <RegistrySearch
         Id="InstalledGameFolderSearch"
@@ -18,10 +19,85 @@
         Key="Software\KingdomMod"
         Name="InstallFolder"
         Type="raw" />
+      <RegistrySearch
+        Id="SteamKingdomTwoCrownsFolderSearch"
+        Root="HKLM"
+        Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 701160"
+        Name="InstallLocation"
+        Type="raw" />
     </Property>
 
     <WixVariable Id="WixUILicenseRtf" Value="$(var.InstallerDir)\License.rtf" />
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <UI>
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <Dialog Id="DefenderExclusionDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\\WixUI_Font_Title}Windows Defender exclusion required" />
+        <Control Id="Description" Type="Text" X="25" Y="32" Width="320" Height="120" Text="KingdomMod builds mod DLLs on this computer and installs them into the Kingdom Two Crowns Mods folder. Those DLLs cannot be code-signed in advance because they are generated locally against your own game install. Windows Defender commonly flags or quarantines unsigned, newly generated mod DLLs, which can prevent KingdomMod and MelonLoader from running correctly." />
+        <Control Id="Required" Type="Text" X="25" Y="151" Width="320" Height="38" Text="To continue, allow the installer to add a Windows Defender exclusion for the selected Kingdom Two Crowns folder. Defender will stop scanning files under that game folder." />
+        <Control Id="AcceptDefenderExclusion" Type="CheckBox" X="25" Y="196" Width="320" Height="28" Property="DEFENDEREXCLUSIONACCEPTED" CheckBoxValue="1" Text="Add the required Windows Defender exclusion for this game folder." />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
+      </Dialog>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Condition="LicenseAccepted = &quot;1&quot;" />
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath_X64" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="2" Condition="WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="DefenderExclusionDlg" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2" />
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath_X64" Order="1" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="2" Condition="WIXUI_INSTALLDIR_VALID&lt;&gt;&quot;1&quot;" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SetTargetPath" Value="[_BrowseProperty]" Order="3" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+
+      <Publish Dialog="DefenderExclusionDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" />
+      <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="DEFENDEREXCLUSIONACCEPTED=&quot;1&quot;" />
+      <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="EndDialog" Value="Exit" Condition="DEFENDEREXCLUSIONACCEPTED&lt;&gt;&quot;1&quot;" />
+      <Publish Dialog="DefenderExclusionDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" />
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DefenderExclusionDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+
+      <Property Id="ARPNOMODIFY" Value="1" />
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Kingdom Two Crowns">
@@ -48,7 +124,7 @@
       Execute="deferred"
       Impersonate="yes"
       Return="check"
-      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot;" />
+      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot;" />
 
     <CustomAction
       Id="UninstallOwnedMelonLoader"

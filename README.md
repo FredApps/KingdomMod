@@ -6,6 +6,11 @@ KingdomMod provides a MelonLoader-based runtime, a small C# SDK, an in-game F1
 console, and example mods for balance tweaks, UI overlays, hotkeys, mounts,
 tree behavior, and sprite replacement.
 
+[![Join the KingdomMod Discord](https://img.shields.io/badge/Discord-Join%20the%20modding%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/VpuCg6Hcrs)
+
+Join the [KingdomMod Discord](https://discord.gg/VpuCg6Hcrs) to share mods,
+ask questions, and help grow the Kingdom Two Crowns modding community.
+
 > You must own Kingdom Two Crowns. KingdomMod ships no game code and no game
 > assets. Developer reference assemblies are generated locally from your own
 > game install and are never redistributed.
@@ -15,10 +20,11 @@ tree behavior, and sprite replacement.
 1. Download [`KingdomMod-<version>-x64.msi`](https://github.com/FredApps/KingdomMod/releases) from the latest GitHub Release.
 2. Run the MSI.
 3. Confirm or browse to your Kingdom Two Crowns folder.
-4. Let the installer launch the game once if interop references must be
+4. Enable the required Windows Defender exclusion checkbox when prompted.
+5. Let the installer launch the game once if interop references must be
    generated. This first pass can take several minutes.
-5. Launch the game normally.
-6. Press **F1** in-game to open the KingdomMod console.
+6. Launch the game normally.
+7. Press **F1** in-game to open the KingdomMod console.
 
 If Windows SmartScreen blocks the installer, choose **More info** and then
 **Run anyway**. This warning appears because KingdomMod's MSI is a new,
@@ -32,6 +38,12 @@ your own game install, extracts a bundled .NET SDK for setup-time compilation,
 builds KingdomMod DLLs locally, and copies the loader, API, and bundled example
 mods into the game's `Mods` folder. If MelonLoader is already present,
 KingdomMod leaves that installation owned by you.
+
+The Defender exclusion is required because KingdomMod builds modified mod DLLs
+locally against your own Kingdom Two Crowns install. Those DLLs cannot be
+signed ahead of time, and Windows Defender can quarantine unsigned generated
+DLLs before MelonLoader can run them. If you do not agree to the exclusion, the
+installer exits without installing KingdomMod.
 
 ## Uninstall
 
