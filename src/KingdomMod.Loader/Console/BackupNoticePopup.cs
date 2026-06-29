@@ -41,8 +41,7 @@ namespace KingdomMod.Loader.Console
         {
             if (!_visible) return;
 
-            Cursor.visible = true;
-            Cursor.lockState = CursorLockMode.None;
+            UiCursor.Apply();
 
             if (!_positioned) { PositionCenter(); _positioned = true; }
 
@@ -92,7 +91,10 @@ namespace KingdomMod.Loader.Console
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("OK", GUILayout.Width(150), GUILayout.Height(30)))
+            {
                 _visible = false;
+                UiCursor.Release();
+            }
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
             GUILayout.Space(6);

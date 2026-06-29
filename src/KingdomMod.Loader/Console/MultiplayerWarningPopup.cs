@@ -51,10 +51,9 @@ namespace KingdomMod.Loader.Console
         {
             if (!_visible) return;
 
-            // The game hides/locks the system cursor during play; force it back
-            // so the player can click the acknowledge button.
-            Cursor.visible = true;
-            Cursor.lockState = CursorLockMode.None;
+            // The game hides/locks and can replace the hardware cursor during
+            // play; force a known arrow so the player can click the button.
+            UiCursor.Apply();
 
             if (!_positioned) { PositionCenter(); _positioned = true; }
 
@@ -111,6 +110,7 @@ namespace KingdomMod.Loader.Console
             if (GUILayout.Button("I understand", GUILayout.Width(150), GUILayout.Height(30)))
             {
                 _visible = false;
+                UiCursor.Release();
                 if (_onAcknowledged != null) _onAcknowledged();
             }
             GUILayout.FlexibleSpace();

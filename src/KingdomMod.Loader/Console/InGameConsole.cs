@@ -45,8 +45,8 @@ namespace KingdomMod.Loader.Console
         private const float WindowBottomMargin = 24f;
 
         // Cursor state captured when the console opens, restored when it closes.
-        // KTC keeps the system cursor hidden during gameplay, so the console
-        // forces the normal OS cursor visible while the F1 panel is open.
+        // KTC can leave its own hardware cursor texture active during gameplay,
+        // so the console forces a known arrow cursor while the F1 panel is open.
         private bool _savedCursorVisible;
         private CursorLockMode _savedCursorLock;
         private bool _cursorOverridden;
@@ -103,13 +103,13 @@ namespace KingdomMod.Loader.Console
             _savedCursorLock = Cursor.lockState;
             _cursorOverridden = true;
             _cursorSuspended = false;
-            Cursor.visible = true;
-            Cursor.lockState = CursorLockMode.None;
+            UiCursor.Apply();
         }
 
         private void RestoreCursor()
         {
             if (!_cursorOverridden) return;
+            UiCursor.Release();
             Cursor.visible = _savedCursorVisible;
             Cursor.lockState = _savedCursorLock;
             _cursorOverridden = false;
@@ -119,6 +119,7 @@ namespace KingdomMod.Loader.Console
         private void SuspendCursorOverride()
         {
             if (!_cursorOverridden) return;
+            UiCursor.Release();
             Cursor.visible = _savedCursorVisible;
             Cursor.lockState = _savedCursorLock;
             _cursorOverridden = false;
@@ -128,8 +129,7 @@ namespace KingdomMod.Loader.Console
         private void MaintainCursorOverride()
         {
             if (!_cursorOverridden) return;
-            Cursor.visible = true;
-            Cursor.lockState = CursorLockMode.None;
+            UiCursor.Apply();
         }
 
         public void Log(string line)
