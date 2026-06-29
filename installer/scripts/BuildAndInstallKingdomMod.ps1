@@ -4,6 +4,8 @@ param(
 
     [string]$DefenderExclusionAccepted,
 
+    [string]$PreviousInstallFolder,
+
     [int]$MsiUiLevel = 2,
 
     [string]$DotNetSdkVersion = '8.0.421',
@@ -24,6 +26,7 @@ $script:CleanupInstalledMelonLoader = $false
 $script:CleanupCopiedDlls = [System.Collections.Generic.List[string]]::new()
 $script:InstallStage = 'starting install'
 $script:SetupLaunchNoticeShown = $false
+$script:IsUpgradeInstall = -not [string]::IsNullOrWhiteSpace($PreviousInstallFolder)
 
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
@@ -311,6 +314,16 @@ function Install-PatchedCpp2IL {
     if ($LASTEXITCODE -ne 0) { throw 'Patched Cpp2IL source build/install failed.' }
 }
 
+function Test-PatchedCpp2ILReady {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    $target = Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Cpp2IL'
+    if (-not (Test-Path -LiteralPath (Join-Path $target 'Cpp2IL.exe'))) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $target 'Cpp2IL.original.exe'))) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $target 'Plugins\Cpp2IL.Plugin.StrippedCodeRegSupport.dll'))) { return $false }
+    return $true
+}
+
 function Test-GeneratedInteropReady {
     param([Parameter(Mandatory=$true)][string]$GameDir)
 
@@ -531,11 +544,15 @@ if (-not (Test-Path $exe)) {
     throw "The selected folder is not a Kingdom Two Crowns install: $game"
 }
 
-if ($DefenderExclusionAccepted -ne '1') {
-    throw 'Windows Defender exclusion consent was not provided. KingdomMod installation cannot continue.'
+if ($script:IsUpgradeInstall) {
+    Write-Host "Existing KingdomMod install detected at '$PreviousInstallFolder'; skipping Defender exclusion setup."
+} else {
+    if ($DefenderExclusionAccepted -ne '1') {
+        throw 'Windows Defender exclusion consent was not provided. KingdomMod installation cannot continue.'
+    }
+    $script:InstallStage = 'adding Windows Defender exclusion'
+    Add-DefenderExclusion -GameDir $game
 }
-$script:InstallStage = 'adding Windows Defender exclusion'
-Add-DefenderExclusion -GameDir $game
 
 $script:InstallStage = 'validating MSI support payload'
 $support = Join-Path $game '.kingdommod-installer'
@@ -573,8 +590,12 @@ if ((Test-Path $mlDir) -or (Test-Path $versionDll)) {
     Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI installed MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
 }
 
-$script:InstallStage = 'building and installing patched Cpp2IL'
-Install-PatchedCpp2IL -GameDir $game -SourceRoot $sourceRoot
+if ($script:IsUpgradeInstall -and (Test-PatchedCpp2ILReady -GameDir $game)) {
+    Write-Host 'Patched Cpp2IL already installed; skipping Cpp2IL source download/build on upgrade.'
+} else {
+    $script:InstallStage = 'building and installing patched Cpp2IL'
+    Install-PatchedCpp2IL -GameDir $game -SourceRoot $sourceRoot
+}
 $script:InstallStage = 'generating IL2CPP references'
 Generate-Refs -GameDir $game -SourceRoot $sourceRoot -LaunchTimeoutSec $LaunchTimeoutSec
 

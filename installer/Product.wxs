@@ -12,6 +12,15 @@
 
     <Property Id="DEFENDEREXCLUSIONACCEPTED" Secure="yes" />
 
+    <Property Id="PREVIOUSKINGDOMMODINSTALLFOLDER" Secure="yes">
+      <RegistrySearch
+        Id="PreviousInstalledGameFolderSearch"
+        Root="HKLM"
+        Key="Software\KingdomMod"
+        Name="InstallFolder"
+        Type="raw" />
+    </Property>
+
     <Property Id="INSTALLFOLDER">
       <RegistrySearch
         Id="InstalledGameFolderSearch"
@@ -75,8 +84,9 @@
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
 
-      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
-      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="1" Condition="NOT Installed AND PREVIOUSKINGDOMMODINSTALLFOLDER" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Order="2" Condition="NOT Installed AND NOT PREVIOUSKINGDOMMODINSTALLFOLDER" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="3" Condition="Installed AND PATCH" />
 
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Condition="LicenseAccepted = &quot;1&quot;" />
@@ -106,7 +116,8 @@
       <Publish Dialog="GameLaunchNoticeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" />
       <Publish Dialog="GameLaunchNoticeDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" />
 
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="GameLaunchNoticeDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="1" Condition="NOT Installed AND PREVIOUSKINGDOMMODINSTALLFOLDER" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="GameLaunchNoticeDlg" Order="2" Condition="NOT Installed AND NOT PREVIOUSKINGDOMMODINSTALLFOLDER" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
 
@@ -159,7 +170,7 @@
     <CustomAction
       Id="SetBuildAndInstallKingdomModData"
       Property="BuildAndInstallKingdomMod"
-      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot; -MsiUiLevel &quot;[UILevel]&quot;" />
+      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot; -PreviousInstallFolder &quot;[PREVIOUSKINGDOMMODINSTALLFOLDER]&quot; -MsiUiLevel &quot;[UILevel]&quot;" />
 
     <CustomAction
       Id="SetUninstallOwnedMelonLoaderData"
@@ -168,9 +179,9 @@
 
     <InstallExecuteSequence>
       <Custom Action="SetBuildAndInstallKingdomModData" Before="BuildAndInstallKingdomMod" Condition="NOT Installed" />
-      <Custom Action="SetUninstallOwnedMelonLoaderData" Before="UninstallOwnedMelonLoader" Condition="REMOVE=&quot;ALL&quot;" />
+      <Custom Action="SetUninstallOwnedMelonLoaderData" Before="UninstallOwnedMelonLoader" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="BuildAndInstallKingdomMod" After="InstallFiles" Condition="NOT Installed" />
-      <Custom Action="UninstallOwnedMelonLoader" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
+      <Custom Action="UninstallOwnedMelonLoader" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
   </Package>
 </Wix>
