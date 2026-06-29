@@ -97,9 +97,11 @@ Before publishing a release:
    - `%TEMP%\KingdomModMsi-Uninstall.log`
    - `<KTC>\MelonLoader\Latest.log`
 
-6. Before sharing the GitHub Release, write release notes that describe the
-   actual installer/runtime/user-visible changes. Do not publish a body that
-   only repeats the version number.
+6. Before pushing the release tag, add `docs/releases/vX.Y.Z.md`. The file must
+   start with a level-1 title such as
+   `# KingdomMod v0.2.10 - Installer state and F1 cursor fix`, followed by a
+   real `What's changed` section. The GitHub Actions MSI workflow fails tag
+   builds when this file is missing and uses it as the release title/body.
 
 ## Troubleshooting Notes
 

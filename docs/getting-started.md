@@ -263,11 +263,10 @@ needed and pinned Cpp2IL source during install. KingdomMod DLLs are built after
 the installer generates `refs/` from that user's game install. GitHub never
 receives or builds against game-derived files.
 
-After the MSI workflow finishes for a tag, edit the GitHub Release title and
-description before sharing it. Use the previous release as the style reference,
-for example `KingdomMod v0.2.7 - Installer runtime cache fix`, and include a
-short `What's changed` list that names the installer/runtime fixes users should
-care about.
+Before pushing a release tag, add `docs/releases/vX.Y.Z.md`. The MSI workflow
+uses that file for the GitHub Release title and description, and tag builds fail
+if it is missing. Use previous release files as the style reference and include
+a short `What's changed` list that names the fixes users should care about.
 
 For installer changes, follow the maintainer checklist in
 [`installer-maintenance.md`](installer-maintenance.md) before publishing.

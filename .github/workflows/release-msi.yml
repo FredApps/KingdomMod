@@ -42,8 +42,37 @@ jobs:
           name: kingdommod-msi
           path: artifacts/installer/*.msi
 
+      - name: Resolve release notes
+        if: github.ref_type == 'tag'
+        id: release_notes
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $path = "docs/releases/$tag.md"
+          if (-not (Test-Path -LiteralPath $path)) {
+            throw "Missing release notes file '$path'. Add it before pushing a release tag."
+          }
+
+          $lines = @(Get-Content -LiteralPath $path)
+          if ($lines.Count -eq 0 -or $lines[0] -notmatch '^#\s+(.+)$') {
+            throw "Release notes file '$path' must start with '# KingdomMod vX.Y.Z - Title'."
+          }
+
+          $title = $Matches[1].Trim()
+          $bodyPath = Join-Path $env:RUNNER_TEMP "$tag-release-body.md"
+          $bodyLines = @($lines | Select-Object -Skip 1)
+          if (-not ($bodyLines | Where-Object { $_.Trim() })) {
+            throw "Release notes file '$path' needs body text after the title."
+          }
+
+          [System.IO.File]::WriteAllLines($bodyPath, $bodyLines, [System.Text.UTF8Encoding]::new($false))
+          "name=$title" >> $env:GITHUB_OUTPUT
+          "body_path=$bodyPath" >> $env:GITHUB_OUTPUT
+
       - name: Attach MSI to GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v3
         with:
+          name: ${{ steps.release_notes.outputs.name }}
+          body_path: ${{ steps.release_notes.outputs.body_path }}
           files: artifacts/installer/*.msi
