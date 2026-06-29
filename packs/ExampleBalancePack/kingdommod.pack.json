@@ -1,0 +1,7 @@
+{
+  "id": "kingdommod.example-balance",
+  "name": "Example Balance Pack",
+  "version": "0.1.0",
+  "author": "KingdomMod contributors",
+  "description": "A copyable no-code pack that demonstrates balance.json overrides."
+}

@@ -1,0 +1,66 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="KingdomMod"
+    Manufacturer="KingdomMod contributors"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="51B8DD67-378B-4DE7-8B44-17EBA8A5F751"
+    Scope="perMachine">
+
+    <SummaryInformation Description="KingdomMod for Kingdom Two Crowns" Manufacturer="KingdomMod contributors" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of KingdomMod is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="INSTALLFOLDER">
+      <RegistrySearch
+        Id="InstalledGameFolderSearch"
+        Root="HKLM"
+        Key="Software\KingdomMod"
+        Name="InstallFolder"
+        Type="raw" />
+    </Property>
+
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.InstallerDir)\License.rtf" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Kingdom Two Crowns">
+        <Component Id="InstallFolderRegistry" Guid="CB6C3807-812E-4E69-8261-D088747736B9">
+          <RegistryValue
+            Root="HKLM"
+            Key="Software\KingdomMod"
+            Name="InstallFolder"
+            Value="[INSTALLFOLDER]"
+            Type="string"
+            KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="KingdomMod" Level="1">
+      <ComponentRef Id="InstallFolderRegistry" />
+      <ComponentGroupRef Id="KingdomModPayload" />
+    </Feature>
+
+    <CustomAction
+      Id="InstallMelonLoader"
+      Directory="INSTALLFOLDER"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check"
+      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[#InstallMelonLoaderScript]&quot; -GameDir &quot;[INSTALLFOLDER]&quot;" />
+
+    <CustomAction
+      Id="UninstallOwnedMelonLoader"
+      Directory="INSTALLFOLDER"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check"
+      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[#UninstallMelonLoaderScript]&quot; -GameDir &quot;[INSTALLFOLDER]&quot;" />
+
+    <InstallExecuteSequence>
+      <Custom Action="InstallMelonLoader" After="InstallFiles" Condition="NOT Installed" />
+      <Custom Action="UninstallOwnedMelonLoader" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

@@ -1,0 +1,49 @@
+name: Build MSI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "MSI version, for example 0.1.0. Defaults to tag version or 0.1.0."
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-msi:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          $version = '${{ inputs.version }}'
+          if (-not $version -and '${{ github.ref_type }}' -eq 'tag') {
+            $version = '${{ github.ref_name }}'.TrimStart('v')
+          }
+          .\tools\build-msi.ps1 -Version $version
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kingdommod-msi
+          path: artifacts/installer/*.msi
+
+      - name: Attach MSI to GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/installer/*.msi

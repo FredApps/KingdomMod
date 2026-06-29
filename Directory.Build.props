@@ -1,0 +1,30 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <NoWarn>$(NoWarn);CS0436;CS0108;CS8632</NoWarn>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DebugType>embedded</DebugType>
+    <RefsDir>$(MSBuildThisFileDirectory)refs\</RefsDir>
+  </PropertyGroup>
+
+  <!-- All game-derived / loader reference assemblies live under refs/.
+       refs/ is gitignored (game-derived) and produced locally by tools/install.ps1.
+       If a project is built before refs/ exists, fail with a friendly message. -->
+  <Target Name="_CheckRefs" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(RefsDir)') And '$(SkipRefsCheck)' != 'true'"
+           Text="refs/ is missing. Run tools/install.ps1 to generate IL2CPP interop assemblies before building." />
+  </Target>
+
+  <ItemGroup Condition="Exists('$(RefsDir)')">
+    <Reference Include="$(RefsDir)*.dll">
+      <Private>false</Private>
+      <HintPath>%(FullPath)</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,55 @@
+# ============================================================================
+#  CRITICAL: never commit game-derived files (Kingdom Two Crowns IP).
+#  Everyone who uses KingdomMod must own the game; we generate these locally.
+# ============================================================================
+
+# Generated IL2CPP interop / proxy assemblies (contain game IP)
+refs/
+src/**/_local/
+**/Il2Cpp*.dll
+**/Il2CppInterop*.dll
+**/Assembly-CSharp*.dll
+
+# Raw game files that may get copied during dumping
+**/GameAssembly.dll
+**/global-metadata.dat
+**/*.assets
+**/*.resource
+**/*.resS
+
+# Il2CppDumper / Cpp2IL output (class surface dump = derived from game)
+docs/_generated/
+**/DummyDll/
+**/dump.cs
+**/il2cpp.h
+**/script.json
+**/stringliteral.json
+
+# Downloaded third-party tools (re-fetched by tools/install.ps1)
+build/
+build/_tools/
+
+# Preserved game snapshots (global-metadata.dat / GameAssembly.dll) — game IP,
+# local insurance only, NEVER redistribute.
+build/_gamesnapshot/
+build/save-backups/
+
+# .NET build output
+bin/
+obj/
+*.user
+artifacts/
+
+# Release payload: commit only KingdomMod-built DLLs. Do not commit generated
+# reference assemblies, dumps, or third-party installer payloads.
+dist/*
+!dist/.gitkeep
+!dist/KingdomMod*.dll
+
+# OS / editor
+.claude/
+.vs/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini

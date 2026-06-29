@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>KingdomMod.Loader</AssemblyName>
+    <RootNamespace>KingdomMod.Loader</RootNamespace>
+    <Description>MelonLoader entry mod for the KingdomMod platform.</Description>
+    <!-- This is a mod assembly, not a redistributable library; skip per-method XML-doc nag. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\KingdomMod.Api\KingdomMod.Api.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>KingdomMod.Api</AssemblyName>
+    <RootNamespace>KingdomMod</RootNamespace>
+    <Description>SDK for writing Kingdom Two Crowns mods under MelonLoader.</Description>
+  </PropertyGroup>
+</Project>

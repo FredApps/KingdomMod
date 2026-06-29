@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>KingdomMod.Examples.BalanceTweaks</AssemblyName>
+    <RootNamespace>KingdomMod.Examples.BalanceTweaks</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\KingdomMod.Api\KingdomMod.Api.csproj" />
+  </ItemGroup>
+</Project>
