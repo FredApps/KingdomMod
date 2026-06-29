@@ -7,7 +7,9 @@
     Scope="perMachine">
 
     <SummaryInformation Description="KingdomMod for Kingdom Two Crowns" Manufacturer="KingdomMod contributors" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of KingdomMod is already installed." />
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of KingdomMod is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <Property Id="DEFENDEREXCLUSIONACCEPTED" Secure="yes" />
