@@ -4,6 +4,8 @@ param(
 
     [string]$DefenderExclusionAccepted,
 
+    [int]$MsiUiLevel = 2,
+
     [string]$DotNetSdkVersion = '8.0.421',
 
     [int]$LaunchTimeoutSec = 900
@@ -12,18 +14,23 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+$UnityDependenciesVersion = '6000.0.61'
+$UnityDependenciesSha512 = '8AA951234926A3E0471FBF0C951A362DB310C4823867A11C81861C9887A00BCE68312974F01B6B021BA46E68F618BD0390C12FAAD6E3680E61F05D2E085CB421'
+
 $script:CleanupGameDir = $null
 $script:CleanupSupportDir = $null
 $script:CleanupAddedDefenderExclusion = $false
 $script:CleanupInstalledMelonLoader = $false
 $script:CleanupCopiedDlls = [System.Collections.Generic.List[string]]::new()
 $script:InstallStage = 'starting install'
+$script:SetupLaunchNoticeShown = $false
 
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
 trap {
     Write-Host "KingdomMod MSI install failed during $script:InstallStage: $($_.Exception.Message)"
     if ($script:CleanupSupportDir) { try { Stop-DotnetBuildServers -SupportDir $script:CleanupSupportDir } catch { } }
+    if ($script:CleanupGameDir) { try { Stop-GameProcesses -GameDir $script:CleanupGameDir } catch { } }
     try { Invoke-InstallRollback } catch { Write-Host "KingdomMod rollback failed: $($_.Exception.Message)" }
     try { Stop-Transcript | Out-Null } catch { }
     exit 1
@@ -105,7 +112,8 @@ function Invoke-DownloadFile {
     param(
         [Parameter(Mandatory=$true)][string]$Uri,
         [Parameter(Mandatory=$true)][string]$OutFile,
-        [Parameter(Mandatory=$true)][string]$Stage
+        [Parameter(Mandatory=$true)][string]$Stage,
+        [string]$ExpectedSha512
     )
 
     $lastError = $null
@@ -113,8 +121,16 @@ function Invoke-DownloadFile {
         try {
             Write-Host "$Stage (attempt $attempt/3)..."
             Invoke-WebRequest -Uri $Uri -OutFile $OutFile -Headers @{ 'User-Agent' = 'kingdommod-msi-installer' }
-            if ((Test-Path -LiteralPath $OutFile) -and ((Get-Item -LiteralPath $OutFile).Length -gt 0)) { return }
-            throw "Downloaded file is missing or empty: $OutFile"
+            if (-not ((Test-Path -LiteralPath $OutFile) -and ((Get-Item -LiteralPath $OutFile).Length -gt 0))) {
+                throw "Downloaded file is missing or empty: $OutFile"
+            }
+            if ($ExpectedSha512) {
+                $actualHash = (Get-FileHash -LiteralPath $OutFile -Algorithm SHA512).Hash
+                if ($actualHash -ine $ExpectedSha512) {
+                    throw "Downloaded file hash mismatch for $OutFile. Expected $ExpectedSha512, got $actualHash."
+                }
+            }
+            return
         } catch {
             $lastError = $_.Exception.Message
             Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
@@ -279,6 +295,12 @@ function Install-PatchedCpp2IL {
         [Parameter(Mandatory=$true)][string]$SourceRoot
     )
 
+    $staleCpp2IlSource = Join-Path $SourceRoot 'build\_tools\Cpp2IL-src'
+    if (Test-Path -LiteralPath $staleCpp2IlSource) {
+        Write-Host "Removing stale Cpp2IL source cache: $staleCpp2IlSource"
+        Remove-Item -LiteralPath $staleCpp2IlSource -Recurse -Force -ErrorAction Stop
+    }
+
     $script = Join-Path $SourceRoot 'tools\install-patched-cpp2il.ps1'
     if (-not (Test-Path $script)) {
         throw "Missing patched Cpp2IL source installer script: $script"
@@ -287,6 +309,165 @@ function Install-PatchedCpp2IL {
     Write-Host 'Building and installing patched Cpp2IL from source on this machine...'
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -GameDir $GameDir
     if ($LASTEXITCODE -ne 0) { throw 'Patched Cpp2IL source build/install failed.' }
+}
+
+function Test-GeneratedInteropReady {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    $gen = Join-Path $GameDir 'MelonLoader\Il2CppAssemblies'
+    if (-not (Test-Path -LiteralPath $gen)) { return $false }
+
+    if (Test-Path -LiteralPath (Join-Path $gen 'Il2Cppmscorlib.dll')) { return $true }
+    if (Test-Path -LiteralPath (Join-Path $gen 'Assembly-CSharp.dll')) { return $true }
+
+    return (@(Get-ChildItem -LiteralPath $gen -File -Filter '*.dll' -ErrorAction SilentlyContinue).Count -ge 10)
+}
+
+function Clear-InteropGenerationState {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    foreach ($cache in @(
+        (Join-Path $GameDir 'MelonLoader\Il2CppAssemblies'),
+        (Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Cpp2IL\cpp2il_out'),
+        (Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\AssemblyGenerator.cfg'),
+        (Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Config.cfg')
+    )) {
+        if (Test-Path -LiteralPath $cache) {
+            Write-Host "Removing stale interop generation state: $cache"
+            Remove-Item -LiteralPath $cache -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Test-UnityDependenciesReady {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    $dir = Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\UnityDependencies'
+    if (-not (Test-Path -LiteralPath $dir)) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $dir 'UnityEngine.CoreModule.dll'))) { return $false }
+    return (@(Get-ChildItem -LiteralPath $dir -File -Filter '*.dll' -ErrorAction SilentlyContinue).Count -ge 50)
+}
+
+function Install-PinnedUnityDependencies {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    if (Test-UnityDependenciesReady -GameDir $GameDir) {
+        Write-Host 'Pinned UnityDependencies are already present.'
+        return $true
+    }
+
+    $generatorDir = Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator'
+    New-Item -ItemType Directory -Force -Path $generatorDir | Out-Null
+
+    $zipName = "UnityDependencies_$UnityDependenciesVersion.zip"
+    $zip = Join-Path $generatorDir $zipName
+    $url = "https://github.com/LavaGang/MelonLoader.UnityDependencies/releases/download/$UnityDependenciesVersion/Managed.zip"
+    Invoke-DownloadFile -Uri $url -OutFile $zip -Stage "Downloading pinned UnityDependencies: $UnityDependenciesVersion" -ExpectedSha512 $UnityDependenciesSha512
+
+    $target = Join-Path $generatorDir 'UnityDependencies'
+    if (Test-Path -LiteralPath $target) {
+        Write-Host "Removing stale UnityDependencies folder: $target"
+        Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
+    }
+
+    Write-Host "Extracting pinned UnityDependencies: $UnityDependenciesVersion..."
+    Expand-Archive -LiteralPath $zip -DestinationPath $target -Force
+    if (-not (Test-UnityDependenciesReady -GameDir $GameDir)) {
+        throw "Pinned UnityDependencies extraction did not produce a usable dependency folder: $target"
+    }
+
+    return $true
+}
+
+function Show-SetupLaunchNotice {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    if ($script:SetupLaunchNoticeShown) { return }
+    $script:SetupLaunchNoticeShown = $true
+    if ($MsiUiLevel -lt 4) { return }
+
+    $message = @"
+KingdomMod must briefly start Kingdom Two Crowns to let MelonLoader generate game references.
+
+The installer will close the game automatically when that setup pass is finished.
+
+Please do not close the game while setup is running.
+"@
+
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        [System.Windows.Forms.MessageBox]::Show(
+            $message,
+            'KingdomMod setup',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
+    } catch {
+        try {
+            $shell = New-Object -ComObject WScript.Shell
+            $shell.Popup($message, 0, 'KingdomMod setup', 64) | Out-Null
+        } catch {
+            Write-Host "Could not show setup launch notice: $($_.Exception.Message)"
+        }
+    }
+}
+
+function Invoke-InteropSetupLaunch {
+    param(
+        [Parameter(Mandatory=$true)][string]$GameDir,
+        [Parameter(Mandatory=$true)][int]$LaunchTimeoutSec,
+        [Parameter(Mandatory=$true)][bool]$OfflineGeneration
+    )
+
+    Set-OfflineGeneration -GameDir $GameDir -Enabled $OfflineGeneration
+
+    $exe = Join-Path $GameDir 'KingdomTwoCrowns.exe'
+    $log = Join-Path $GameDir 'MelonLoader\Latest.log'
+    $mode = if ($OfflineGeneration) { 'offline' } else { 'online' }
+    Write-Host "Running controlled Kingdom Two Crowns setup pass to generate IL2CPP references ($mode)..."
+    Show-SetupLaunchNotice -GameDir $GameDir
+
+    $oldSteamAppId = $env:SteamAppId
+    $oldSteamGameId = $env:SteamGameId
+    $env:SteamAppId = '701160'
+    $env:SteamGameId = '701160'
+    try {
+        $proc = Start-Process -FilePath $exe -WindowStyle Minimized -PassThru
+    } finally {
+        if ($null -eq $oldSteamAppId) { Remove-Item Env:\SteamAppId -ErrorAction SilentlyContinue } else { $env:SteamAppId = $oldSteamAppId }
+        if ($null -eq $oldSteamGameId) { Remove-Item Env:\SteamGameId -ErrorAction SilentlyContinue } else { $env:SteamGameId = $oldSteamGameId }
+    }
+
+    try {
+        $deadline = (Get-Date).AddSeconds($LaunchTimeoutSec)
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 2
+            if (Test-GeneratedInteropReady -GameDir $GameDir) { return $true }
+
+            if ($log -and (Test-Path -LiteralPath $log)) {
+                $tail = (Get-Content -LiteralPath $log -Tail 200 -ErrorAction SilentlyContinue) -join "`n"
+                if ($tail -match 'No Support Module Loaded!' -or
+                    $tail -match 'Assembly is up to date\. No Generation Needed\.' -or
+                    $tail -match 'Loading Mods\.\.\.\s+0 Mods loaded\.') {
+                    Write-Host 'MelonLoader setup pass reached a terminal state without usable generated refs; stopping it for a clean retry.'
+                    break
+                }
+            }
+
+            if ($proc -and $proc.HasExited) { break }
+        }
+    } finally {
+        if ($proc -and -not $proc.HasExited) {
+            try { $proc.CloseMainWindow() | Out-Null } catch { }
+            Start-Sleep -Seconds 2
+            if (-not $proc.HasExited) {
+                try { $proc.Kill() } catch { }
+            }
+        }
+        Stop-GameProcesses -GameDir $GameDir
+    }
+
+    return (Test-GeneratedInteropReady -GameDir $GameDir)
 }
 
 function Generate-Refs {
@@ -298,38 +479,27 @@ function Generate-Refs {
 
     $gen = Join-Path $GameDir 'MelonLoader\Il2CppAssemblies'
     $refs = Join-Path $SourceRoot 'refs'
-    $marker = Join-Path $gen 'Il2Cppmscorlib.dll'
 
-    Set-OfflineGeneration -GameDir $GameDir -Enabled $false
-
-    if (-not (Test-Path $marker)) {
-        $exe = Join-Path $GameDir 'KingdomTwoCrowns.exe'
-        Write-Host 'Running Kingdom Two Crowns setup pass to generate IL2CPP references...'
-        $oldSteamAppId = $env:SteamAppId
-        $oldSteamGameId = $env:SteamGameId
-        $env:SteamAppId = '701160'
-        $env:SteamGameId = '701160'
+    if (-not (Test-GeneratedInteropReady -GameDir $GameDir)) {
+        $offlineReady = $false
         try {
-            $proc = Start-Process -FilePath $exe -PassThru
-        } finally {
-            if ($null -eq $oldSteamAppId) { Remove-Item Env:\SteamAppId -ErrorAction SilentlyContinue } else { $env:SteamAppId = $oldSteamAppId }
-            if ($null -eq $oldSteamGameId) { Remove-Item Env:\SteamGameId -ErrorAction SilentlyContinue } else { $env:SteamGameId = $oldSteamGameId }
-        }
-        $deadline = (Get-Date).AddSeconds($LaunchTimeoutSec)
-        while ((Get-Date) -lt $deadline) {
-            Start-Sleep -Seconds 3
-            if (Test-Path $marker) { break }
+            $offlineReady = Install-PinnedUnityDependencies -GameDir $GameDir
+        } catch {
+            Write-Host "Could not prepare pinned UnityDependencies for offline generation: $($_.Exception.Message)"
+            Write-Host 'Falling back to MelonLoader online dependency resolution for this install.'
         }
 
-        Start-Sleep -Seconds 5
-        if ($proc -and -not $proc.HasExited) {
-            $proc.CloseMainWindow() | Out-Null
-            Start-Sleep -Seconds 2
-            if (-not $proc.HasExited) { $proc.Kill() }
+        Clear-InteropGenerationState -GameDir $GameDir
+        $generated = Invoke-InteropSetupLaunch -GameDir $GameDir -LaunchTimeoutSec $LaunchTimeoutSec -OfflineGeneration $offlineReady
+
+        if (-not $generated) {
+            Write-Host 'Setup pass did not produce refs; clearing stale state and retrying once with online dependency resolution.'
+            Clear-InteropGenerationState -GameDir $GameDir
+            $generated = Invoke-InteropSetupLaunch -GameDir $GameDir -LaunchTimeoutSec $LaunchTimeoutSec -OfflineGeneration $false
         }
 
-        if (-not (Test-Path $marker)) {
-            throw "Interop assemblies were not generated within $LaunchTimeoutSec seconds. Launch the game once manually, reach the main menu, then rerun the MSI."
+        if (-not $generated) {
+            throw "Interop assemblies were not generated within $LaunchTimeoutSec seconds. The setup pass was stopped automatically; see $logPath and the MelonLoader Latest.log for details."
         }
     }
 

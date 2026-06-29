@@ -67,13 +67,14 @@ function Replace-RegexText {
         [Parameter(Mandatory=$true)][string]$Path,
         [Parameter(Mandatory=$true)][string]$Pattern,
         [Parameter(Mandatory=$true)][string]$Replacement,
-        [Parameter(Mandatory=$true)][string]$Description
+        [Parameter(Mandatory=$true)][string]$Description,
+        [string]$AlreadyPatchedPattern
     )
 
     $text = Get-Content -LiteralPath $Path -Raw
+    if ($AlreadyPatchedPattern -and $text -match $AlreadyPatchedPattern) { return }
     $newText = [regex]::Replace($text, $Pattern, $Replacement, 1)
     if ($newText -eq $text) {
-        if ($text -match [regex]::Escape($Replacement)) { return }
         throw "Could not apply KingdomMod Cpp2IL patch to '$Path'; $Description was not found."
     }
     Set-Content -LiteralPath $Path -Value $newText -Encoding UTF8 -NoNewline
@@ -202,7 +203,7 @@ function Apply-KingdomModCpp2IlPatch {
 
     Set-GlobalJsonSdk -Path (Join-Path $srcRoot 'global.json')
 
-    Replace-RegexText -Path (Join-Path $srcRoot 'LibCpp2IL\Metadata\Il2CppPropertyDefinition.cs') -Pattern '(?s)\s*public Il2CppTypeReflectionData\? PropertyType => LibCpp2IlMain\.TheMetadata == null \? null : Getter == null \? Setter!\.Parameters!\[0\]\.Type : Getter!\.ReturnType;\s*public Il2CppType\? RawPropertyType => LibCpp2IlMain\.TheMetadata == null \? null : Getter == null \? Setter!\.Parameters!\[0\]\.RawType : Getter!\.RawReturnType;\s*public bool IsStatic => Getter == null \? Setter!\.IsStatic : Getter!\.IsStatic;' -Description 'stripped property metadata null-safety block' -Replacement @'
+    Replace-RegexText -Path (Join-Path $srcRoot 'LibCpp2IL\Metadata\Il2CppPropertyDefinition.cs') -Pattern '(?s)\s*public Il2CppTypeReflectionData\? PropertyType => LibCpp2IlMain\.TheMetadata == null \? null : Getter == null \? Setter!\.Parameters!\[0\]\.Type : Getter!\.ReturnType;\s*public Il2CppType\? RawPropertyType => LibCpp2IlMain\.TheMetadata == null \? null : Getter == null \? Setter!\.Parameters!\[0\]\.RawType : Getter!\.RawReturnType;\s*public bool IsStatic => Getter == null \? Setter!\.IsStatic : Getter!\.IsStatic;' -Description 'stripped property metadata null-safety block' -AlreadyPatchedPattern 'Setter\?\.Parameters\?\[0\]\.Type' -Replacement @'
 
     public Il2CppTypeReflectionData? PropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter != null ? Getter.ReturnType : Setter?.Parameters?[0].Type;
 
@@ -288,7 +289,8 @@ if (Test-Path (Join-Path $pluginSource 'Cpp2IL.Plugin.StrippedCodeRegSupport.dll
 foreach ($cache in @(
         (Join-Path $target 'cpp2il_out'),
         (Join-Path $game 'MelonLoader\Il2CppAssemblies'),
-        (Join-Path $game 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\AssemblyGenerator.cfg'))) {
+        (Join-Path $game 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\AssemblyGenerator.cfg'),
+        (Join-Path $game 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Config.cfg'))) {
     if (Test-Path $cache) { Remove-Item $cache -Recurse -Force -ErrorAction SilentlyContinue }
 }
 

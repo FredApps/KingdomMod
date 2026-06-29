@@ -137,7 +137,7 @@
     <CustomAction
       Id="SetBuildAndInstallKingdomModData"
       Property="BuildAndInstallKingdomMod"
-      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot;" />
+      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot; -MsiUiLevel &quot;[UILevel]&quot;" />
 
     <CustomAction
       Id="SetUninstallOwnedMelonLoaderData"
