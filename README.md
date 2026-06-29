@@ -108,44 +108,6 @@ It includes:
 Everything defaults to vanilla behavior unless a mod or cheat is explicitly
 enabled. A first-run popup warns about multiplayer desync and cloud-save risk.
 
-## Developer Setup
-
-Normal install and developer setup share the same core model: KingdomMod DLLs
-compile on the machine that owns the game, after local references are generated
-from that game install. The MSI automates that for players and downloads
-setup dependencies during install only when needed. Clone the repo only if you
-want to change KingdomMod, write mods, or prepare releases:
-
-```powershell
-git clone https://github.com/FredApps/KingdomMod.git
-cd KingdomMod
-powershell -ExecutionPolicy Bypass -File tools\install.ps1
-dotnet build KingdomMod.sln -c Release
-```
-
-`tools\install.ps1` installs MelonLoader for the local game, backs up saves,
-downloads and builds KingdomMod's patched Cpp2IL from source, generates local
-`refs/`, and optionally dumps the class surface used by the docs. `refs/` and
-generated dumps are ignored and must not be committed.
-
-To smoke-test a local build into `dist/` after changes:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\prepare-release.ps1
-```
-
-To build the MSI locally:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
-```
-
-The GitHub workflow packages source plus installer support into an MSI on `v*`
-tags or manual runs. The MSI includes source, MelonLoader, and setup scripts;
-it does not bundle the .NET SDK, Cpp2IL source, or patched Cpp2IL binaries.
-Those setup dependencies are downloaded on the target machine, and KingdomMod
-DLLs are built after generating local refs from that user's game install.
-
 ## Writing Mods
 
 Start with [docs/getting-started.md](docs/getting-started.md), then use
