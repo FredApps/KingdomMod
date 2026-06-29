@@ -52,6 +52,7 @@ namespace KingdomMod.Loader.Console
         private bool _savedCursorVisible;
         private CursorLockMode _savedCursorLock;
         private bool _cursorOverridden;
+        private bool _cursorSuspended;
 
         public void Toggle()
         {
@@ -65,6 +66,24 @@ namespace KingdomMod.Loader.Console
             {
                 RestoreCursor();
             }
+        }
+
+        public void OnUpdate(bool cursorAllowed)
+        {
+            if (!_visible)
+            {
+                RestoreCursor();
+                return;
+            }
+
+            if (!cursorAllowed)
+            {
+                SuspendCursorOverride();
+                return;
+            }
+
+            if (_cursorSuspended) CaptureAndShowCursor();
+            MaintainCursorOverride();
         }
 
         private void PositionAtBottom()
@@ -85,6 +104,7 @@ namespace KingdomMod.Loader.Console
             _savedCursorVisible = Cursor.visible;
             _savedCursorLock = Cursor.lockState;
             _cursorOverridden = true;
+            _cursorSuspended = false;
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.None;
         }
@@ -95,6 +115,23 @@ namespace KingdomMod.Loader.Console
             Cursor.visible = _savedCursorVisible;
             Cursor.lockState = _savedCursorLock;
             _cursorOverridden = false;
+            _cursorSuspended = false;
+        }
+
+        private void SuspendCursorOverride()
+        {
+            if (!_cursorOverridden) return;
+            Cursor.visible = _savedCursorVisible;
+            Cursor.lockState = _savedCursorLock;
+            _cursorOverridden = false;
+            _cursorSuspended = true;
+        }
+
+        private void MaintainCursorOverride()
+        {
+            if (!_cursorOverridden) return;
+            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.None;
         }
 
         public void Log(string line)
@@ -106,11 +143,7 @@ namespace KingdomMod.Loader.Console
         public void OnGUI()
         {
             if (!_visible) return;
-            // Re-assert each frame â€” the game (or another mod) may set
-            // Cursor.visible/lockState every frame on its own. Keep the hardware
-            // cursor hidden and draw a software pointer so it does not flicker.
-            Cursor.visible = false;
-            Cursor.lockState = CursorLockMode.None;
+            MaintainCursorOverride();
 
             // Pin as a full-width bar flush with the bottom of the screen.
             // GUILayout.Window grows the window to fit its content, which can be

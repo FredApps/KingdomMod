@@ -209,10 +209,11 @@ $game = Resolve-GameDir -Path $GameDir
 $support = Join-Path $game '.kingdommod-installer'
 $cache = Join-Path $game '.kingdommod-cache'
 $ownsMarker = Join-Path $support 'owns-melonloader'
+$defenderMarker = Join-Path $support 'defender-exclusion-added'
 $modsDir = Join-Path $game 'Mods'
 
 $ownsMelonLoader = (Test-Truthy -Value (Get-RegistryValue -Path $InstallerRegistryPath -Name 'OwnsMelonLoader')) -or (Test-Path -LiteralPath $ownsMarker)
-$defenderExclusionAdded = Test-Truthy -Value (Get-RegistryValue -Path $InstallerRegistryPath -Name 'DefenderExclusionAdded')
+$defenderExclusionAdded = (Test-Truthy -Value (Get-RegistryValue -Path $InstallerRegistryPath -Name 'DefenderExclusionAdded')) -or (Test-Path -LiteralPath $defenderMarker)
 
 Stop-GameProcesses -GameDir $game
 Remove-KingdomModDlls -ModsDir $modsDir

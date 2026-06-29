@@ -235,6 +235,8 @@ namespace KingdomMod.Loader
         public override void OnUpdate()
         {
             if (_consoleEnabled.Value && Input.GetKeyDown(KeyCode.F1)) _console?.Toggle();
+            bool popupVisible = IsModalPopupVisible();
+            if (_consoleEnabled.Value) _console?.OnUpdate(!popupVisible);
             KingdomMod.Loader.Patches.BoarVanishFixPatch.Tick();
 
             // Hide the coin pouch while any coin cheat is active so the
@@ -252,8 +254,7 @@ namespace KingdomMod.Loader
 
         public override void OnGUI()
         {
-            bool popupVisible = (_mpWarning != null && _mpWarning.Visible)
-                                || (_backupNotice != null && _backupNotice.Visible);
+            bool popupVisible = IsModalPopupVisible();
             if (popupVisible)
             {
                 _coinCounter?.OnGUI();
@@ -268,6 +269,12 @@ namespace KingdomMod.Loader
             _mpWarning?.OnGUI();
             _backupNotice?.OnGUI();
             _fixPopup?.OnGUI();
+        }
+
+        private bool IsModalPopupVisible()
+        {
+            return (_mpWarning != null && _mpWarning.Visible)
+                   || (_backupNotice != null && _backupNotice.Visible);
         }
 
         // ---- MelonLoader log archive -------------------------------------------

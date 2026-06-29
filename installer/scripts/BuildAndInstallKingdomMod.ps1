@@ -32,7 +32,6 @@ $script:CleanupCopiedDlls = [System.Collections.Generic.List[string]]::new()
 $script:InstallStage = 'starting install'
 $script:SetupLaunchNoticeShown = $false
 $script:IsUpgradeInstall = -not [string]::IsNullOrWhiteSpace($PreviousInstallFolder)
-$script:InstallerRegistryPath = 'HKLM:\Software\KingdomMod'
 
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
@@ -102,15 +101,26 @@ function Test-InstallerTruthy {
 
 function Set-KingdomModInstallerState {
     param(
-        [Parameter(Mandatory=$true)][string]$GameDir,
+        [Parameter(Mandatory=$true)][string]$SupportDir,
         [Parameter(Mandatory=$true)][bool]$OwnsMelonLoader,
         [Parameter(Mandatory=$true)][bool]$DefenderExclusionAdded
     )
 
-    New-Item -Path $script:InstallerRegistryPath -Force | Out-Null
-    New-ItemProperty -Path $script:InstallerRegistryPath -Name 'InstallFolder' -Value $GameDir -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $script:InstallerRegistryPath -Name 'OwnsMelonLoader' -Value ([int]$OwnsMelonLoader) -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path $script:InstallerRegistryPath -Name 'DefenderExclusionAdded' -Value ([int]$DefenderExclusionAdded) -PropertyType DWord -Force | Out-Null
+    New-Item -ItemType Directory -Force -Path $SupportDir | Out-Null
+
+    $ownershipMarker = Join-Path $SupportDir 'owns-melonloader'
+    if ($OwnsMelonLoader) {
+        Set-Content -LiteralPath $ownershipMarker -Value "KingdomMod MSI owns MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
+    } else {
+        Remove-Item -LiteralPath $ownershipMarker -Force -ErrorAction SilentlyContinue
+    }
+
+    $defenderMarker = Join-Path $SupportDir 'defender-exclusion-added'
+    if ($DefenderExclusionAdded) {
+        Set-Content -LiteralPath $defenderMarker -Value "KingdomMod MSI added Defender exclusion on $(Get-Date -Format o)" -Encoding UTF8
+    } else {
+        Remove-Item -LiteralPath $defenderMarker -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Resolve-Dotnet {
@@ -961,7 +971,7 @@ foreach ($dll in $dlls) {
 Write-Host "KingdomMod built and installed. DLLs copied: $($dlls.Count)"
 Stop-DotnetBuildServers -SupportDir $support
 $script:InstallStage = 'recording installer state'
-Set-KingdomModInstallerState -GameDir $game -OwnsMelonLoader $installerOwnsMelonLoader -DefenderExclusionAdded $script:CleanupAddedDefenderExclusion
+Set-KingdomModInstallerState -SupportDir $support -OwnsMelonLoader $installerOwnsMelonLoader -DefenderExclusionAdded $script:CleanupAddedDefenderExclusion
 $script:CleanupCopiedDlls.Clear()
 $script:CleanupInstalledMelonLoader = $false
 $script:CleanupAddedDefenderExclusion = $false
