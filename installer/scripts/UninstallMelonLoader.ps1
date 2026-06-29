@@ -23,6 +23,7 @@ function Resolve-GameDir {
 
 $game = Resolve-GameDir -Path $GameDir
 $support = Join-Path $game '.kingdommod-installer'
+$cache = Join-Path $game '.kingdommod-cache'
 $ownsMarker = Join-Path $support 'owns-melonloader'
 $modsDir = Join-Path $game 'Mods'
 
@@ -50,6 +51,7 @@ function Remove-Tree {
 function Remove-InstallerBuildCache {
     Remove-Tree -Path (Join-Path $support 'dotnet')
     Remove-Tree -Path (Join-Path $support 'source')
+    Remove-Tree -Path $cache
 }
 
 if (Test-Path $modsDir) {

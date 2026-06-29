@@ -96,6 +96,7 @@ function Resolve-Dotnet {
 
     $candidates = [System.Collections.Generic.List[string]]::new()
     $candidates.Add((Join-Path $SupportDir 'dotnet\dotnet.exe'))
+    $candidates.Add((Join-Path (Resolve-InstallerCacheDir -SupportDir $SupportDir) 'dotnet\dotnet.exe'))
     if ($env:DOTNET_ROOT) { $candidates.Add((Join-Path $env:DOTNET_ROOT 'dotnet.exe')) }
     $cmd = Get-Command dotnet -ErrorAction SilentlyContinue
     if ($cmd) { $candidates.Add($cmd.Source) }
@@ -113,6 +114,13 @@ function Resolve-Dotnet {
 
     if ($AllowMissing) { return $null }
     throw 'No .NET SDK found. The setup-time SDK could not be used; rerun the MSI or check the KingdomMod installer log.'
+}
+
+function Resolve-InstallerCacheDir {
+    param([Parameter(Mandatory=$true)][string]$SupportDir)
+
+    $gameDir = Split-Path -Path $SupportDir -Parent
+    return (Join-Path $gameDir '.kingdommod-cache')
 }
 
 function Test-DotnetSdkMajor {
@@ -173,10 +181,14 @@ function Install-SetupDotnetSdk {
         [Parameter(Mandatory=$true)][string]$DotNetSdkVersion
     )
 
-    $dotnetExe = Join-Path $SupportDir 'dotnet\dotnet.exe'
+    $cache = Resolve-InstallerCacheDir -SupportDir $SupportDir
+    $dotnetExe = Join-Path $cache 'dotnet\dotnet.exe'
     $requiredSdkMajor = [int](($DotNetSdkVersion -split '\.')[0])
     if (Test-Path $dotnetExe) {
-        if (Test-DotnetSdkMajor -DotnetExe $dotnetExe -MinimumMajor $requiredSdkMajor) { return }
+        if (Test-DotnetSdkMajor -DotnetExe $dotnetExe -MinimumMajor $requiredSdkMajor) {
+            Write-Host "Reusing cached setup-time .NET SDK: $dotnetExe"
+            return
+        }
 
         $staleDotnet = Split-Path $dotnetExe -Parent
         Write-Host "Removing stale setup-time .NET SDK that does not satisfy .NET ${requiredSdkMajor}: $staleDotnet"
@@ -184,25 +196,33 @@ function Install-SetupDotnetSdk {
     }
 
     $assetName = "dotnet-sdk-$DotNetSdkVersion-win-x64.zip"
-    $sdkZip = Join-Path $SupportDir $assetName
+    New-Item -ItemType Directory -Force -Path $cache | Out-Null
+    $sdkZip = Join-Path $cache $assetName
     if (-not (Test-Path $sdkZip)) {
         $downloadUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$DotNetSdkVersion/$assetName"
         Invoke-DownloadFile -Uri $downloadUrl -OutFile $sdkZip -Stage "Downloading pinned setup-time .NET SDK: $assetName"
     }
 
     Write-Host "Extracting setup-time .NET SDK: $assetName..."
-    $target = Join-Path $SupportDir 'dotnet'
+    $target = Join-Path $cache 'dotnet'
+    if (Test-Path -LiteralPath $target) {
+        Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue
+    }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
     Expand-Archive -LiteralPath $sdkZip -DestinationPath $target -Force
+
+    if (-not (Test-DotnetSdkMajor -DotnetExe $dotnetExe -MinimumMajor $requiredSdkMajor)) {
+        throw "Downloaded setup-time .NET SDK is not usable: $dotnetExe"
+    }
 }
 
 function Enable-BundledDotnetSdk {
     param([Parameter(Mandatory=$true)][string]$SupportDir)
 
-    $dotnetRoot = Join-Path $SupportDir 'dotnet'
+    $dotnetRoot = Join-Path (Resolve-InstallerCacheDir -SupportDir $SupportDir) 'dotnet'
     $dotnetExe = Join-Path $dotnetRoot 'dotnet.exe'
-    if (-not (Test-Path $dotnetExe)) {
-        throw "Setup-time .NET SDK was not extracted to '$dotnetRoot'."
+    if (-not (Test-DotnetSdkMajor -DotnetExe $dotnetExe -MinimumMajor 8)) {
+        throw "Setup-time .NET SDK was not extracted to '$dotnetRoot' or is not usable."
     }
 
     $env:DOTNET_ROOT = $dotnetRoot
@@ -239,18 +259,28 @@ function Install-MelonLoaderPortableDotnet6 {
     }
 
     $assetName = 'dotnet6.windows.x86_64.zip'
-    $zip = Join-Path $SupportDir $assetName
+    $cache = Resolve-InstallerCacheDir -SupportDir $SupportDir
+    New-Item -ItemType Directory -Force -Path $cache | Out-Null
+    $zip = Join-Path $cache $assetName
     if (-not (Test-Path -LiteralPath $zip)) {
         $downloadUrl = "https://github.com/LavaGang/PortableDotnet/raw/refs/heads/$MelonLoaderPortableDotnetVersion/$assetName"
         Invoke-DownloadFile -Uri $downloadUrl -OutFile $zip -Stage "Downloading MelonLoader portable .NET runtime: $assetName"
     }
 
     Write-Host "Installing MelonLoader portable .NET runtime: $assetName..."
-    $extract = Join-Path $SupportDir 'dotnet6-extract'
+    $extract = Join-Path $cache 'dotnet6-extract'
     Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $extract, $melonDotnet | Out-Null
     Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
-    Get-ChildItem -LiteralPath $extract -Force |
+
+    $runtimeDotnetExe = Get-ChildItem -LiteralPath $extract -Recurse -File -Filter 'dotnet.exe' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if (-not $runtimeDotnetExe) {
+        throw "MelonLoader portable .NET runtime archive did not contain dotnet.exe: $zip"
+    }
+
+    $runtimeRoot = Split-Path -Path $runtimeDotnetExe.FullName -Parent
+    Get-ChildItem -LiteralPath $runtimeRoot -Force |
         Copy-Item -Destination $melonDotnet -Recurse -Force
     Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -275,7 +305,7 @@ function Ensure-MelonLoaderDotnetRuntimes {
         return
     }
 
-    $setupDotnet = Join-Path $SupportDir 'dotnet'
+    $setupDotnet = Join-Path (Resolve-InstallerCacheDir -SupportDir $SupportDir) 'dotnet'
     $setupDotnetExe = Join-Path $setupDotnet 'dotnet.exe'
     if (-not (Test-DotnetRuntimeMajor -DotnetExe $setupDotnetExe -Major 8)) {
         Install-SetupDotnetSdk -SupportDir $SupportDir -DotNetSdkVersion $DotNetSdkVersion
@@ -836,7 +866,7 @@ if (-not $dotnet) {
     Install-SetupDotnetSdk -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
     Enable-BundledDotnetSdk -SupportDir $support
     $dotnet = Resolve-Dotnet -SupportDir $support -MinimumSdkMajor 8
-} elseif (Test-Path (Join-Path $support 'dotnet\dotnet.exe')) {
+} elseif (Test-Path (Join-Path (Resolve-InstallerCacheDir -SupportDir $support) 'dotnet\dotnet.exe')) {
     Enable-BundledDotnetSdk -SupportDir $support
 }
 
