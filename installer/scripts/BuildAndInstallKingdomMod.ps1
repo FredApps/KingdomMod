@@ -6,6 +6,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
@@ -63,6 +64,19 @@ function Install-BundledDotnetSdk {
     Expand-Archive -LiteralPath $sdkZip.FullName -DestinationPath $target -Force
 }
 
+function Enable-BundledDotnetSdk {
+    param([Parameter(Mandatory=$true)][string]$SupportDir)
+
+    $dotnetRoot = Join-Path $SupportDir 'dotnet'
+    $dotnetExe = Join-Path $dotnetRoot 'dotnet.exe'
+    if (-not (Test-Path $dotnetExe)) {
+        throw "Bundled .NET SDK was not extracted to '$dotnetRoot'."
+    }
+
+    $env:DOTNET_ROOT = $dotnetRoot
+    $env:PATH = "$dotnetRoot;$env:PATH"
+}
+
 function Set-OfflineGeneration {
     param(
         [Parameter(Mandatory=$true)][string]$GameDir,
@@ -92,35 +106,17 @@ function Set-OfflineGeneration {
 function Install-PatchedCpp2IL {
     param(
         [Parameter(Mandatory=$true)][string]$GameDir,
-        [Parameter(Mandatory=$true)][string]$SupportDir
+        [Parameter(Mandatory=$true)][string]$SourceRoot
     )
 
-    $source = Join-Path $SupportDir 'patched-cpp2il\Cpp2IL'
-    $plugin = Join-Path $SupportDir 'patched-cpp2il\Plugins'
-    if (-not (Test-Path (Join-Path $source 'Cpp2IL.exe'))) {
-        throw "Bundled patched Cpp2IL is missing at '$source'."
+    $script = Join-Path $SourceRoot 'tools\install-patched-cpp2il.ps1'
+    if (-not (Test-Path $script)) {
+        throw "Missing patched Cpp2IL source installer script: $script"
     }
 
-    $target = Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Cpp2IL'
-    New-Item -ItemType Directory -Force -Path $target | Out-Null
-
-    $existing = Join-Path $target 'Cpp2IL.exe'
-    if ((Test-Path $existing) -and -not (Test-Path (Join-Path $target 'Cpp2IL.original.exe'))) {
-        Copy-Item -LiteralPath $existing -Destination (Join-Path $target 'Cpp2IL.original.exe') -Force
-    }
-
-    Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
-    if (Test-Path $plugin) {
-        New-Item -ItemType Directory -Force -Path (Join-Path $target 'Plugins') | Out-Null
-        Copy-Item -Path (Join-Path $plugin '*') -Destination (Join-Path $target 'Plugins') -Recurse -Force
-    }
-
-    foreach ($cache in @(
-        (Join-Path $target 'cpp2il_out'),
-        (Join-Path $GameDir 'MelonLoader\Il2CppAssemblies'),
-        (Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\AssemblyGenerator.cfg'))) {
-        if (Test-Path $cache) { Remove-Item -LiteralPath $cache -Recurse -Force -ErrorAction SilentlyContinue }
-    }
+    Write-Host 'Building and installing patched Cpp2IL from source on this machine...'
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -GameDir $GameDir
+    if ($LASTEXITCODE -ne 0) { throw 'Patched Cpp2IL source build/install failed.' }
 }
 
 function Generate-Refs {
@@ -195,6 +191,7 @@ if (-not (Test-Path (Join-Path $sourceRoot 'KingdomMod.sln'))) {
     throw "Missing bundled KingdomMod source payload: $sourceRoot"
 }
 Install-BundledDotnetSdk -SupportDir $support
+Enable-BundledDotnetSdk -SupportDir $support
 
 $mlDir = Join-Path $game 'MelonLoader'
 $versionDll = Join-Path $game 'version.dll'
@@ -209,7 +206,7 @@ if ((Test-Path $mlDir) -or (Test-Path $versionDll)) {
     Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI installed MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
 }
 
-Install-PatchedCpp2IL -GameDir $game -SupportDir $support
+Install-PatchedCpp2IL -GameDir $game -SourceRoot $sourceRoot
 Generate-Refs -GameDir $game -SourceRoot $sourceRoot -LaunchTimeoutSec $LaunchTimeoutSec
 
 $dotnet = Resolve-Dotnet -SupportDir $support

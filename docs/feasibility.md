@@ -41,8 +41,9 @@ metadata, so `Il2CppPropertyDefinition.RawPropertyType` dereferences a null
 [#548](https://github.com/SamboyCoding/Cpp2IL/pull/548) proposed a fix but it
 hasn't shipped in any pre-release tag yet.
 
-**Our solution:** ship a *patched Cpp2IL* with KingdomMod's installer.  Three small
-surgical changes (all to upstream third-party code, none touching game content):
+**Our solution:** ship a source patch and build patched Cpp2IL on the user's
+machine. Three small surgical changes are applied to upstream third-party code;
+none touch or redistribute game content:
 
 1. `LibCpp2IL/Metadata/Il2CppPropertyDefinition.cs`
    — `PropertyType`, `RawPropertyType` and `IsStatic` now return `null` / `false`
@@ -54,10 +55,11 @@ surgical changes (all to upstream third-party code, none touching game content):
    — `PopulateCustomAttributes` skips properties we couldn't materialise above
    instead of NREing on a missing `AsmResolverProperty` extra-data tag.
 
-`tools/install.ps1` installs the patched Cpp2IL build from `build/_tools` and
-drops the resulting `Cpp2IL.exe` into
-`MelonLoader/Dependencies/Il2CppAssemblyGenerator/Cpp2IL/` — replacing the
-bundled version.  The original is preserved as `Cpp2IL.original.exe` so
+`tools/install.ps1` downloads upstream Cpp2IL source into ignored
+`build/_tools/`, applies the KingdomMod patch locally, builds it, and drops the
+resulting `Cpp2IL.exe` into
+`MelonLoader/Dependencies/Il2CppAssemblyGenerator/Cpp2IL/`, replacing the
+bundled version. The original is preserved as `Cpp2IL.original.exe` so
 MelonLoader can be reverted with a one-line restore.
 
 **Performance:** patched Cpp2IL completes in ~60 seconds on the full 70 MB

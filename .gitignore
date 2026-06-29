@@ -28,6 +28,7 @@ docs/_generated/
 # Downloaded third-party tools (re-fetched by tools/install.ps1)
 build/
 build/_tools/
+installer/patched-cpp2il/
 
 # Preserved game snapshots (global-metadata.dat / GameAssembly.dll) — game IP,
 # local insurance only, NEVER redistribute.

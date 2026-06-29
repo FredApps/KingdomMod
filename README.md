@@ -20,12 +20,12 @@ tree behavior, and sprite replacement.
 5. Launch the game normally.
 6. Press **F1** in-game to open the KingdomMod console.
 
-The MSI installs MelonLoader if needed, installs KingdomMod's patched Cpp2IL,
-generates local references from your own game install, extracts a bundled .NET
-SDK for setup-time compilation, builds KingdomMod DLLs on your machine, and
-copies the loader, API, and bundled example mods into the game's `Mods` folder.
-If MelonLoader is already present, KingdomMod leaves that installation owned by
-you.
+The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
+patched Cpp2IL from source on your machine, generates local references from
+your own game install, extracts a bundled .NET SDK for setup-time compilation,
+builds KingdomMod DLLs locally, and copies the loader, API, and bundled example
+mods into the game's `Mods` folder. If MelonLoader is already present,
+KingdomMod leaves that installation owned by you.
 
 ## Uninstall
 
@@ -100,9 +100,9 @@ dotnet build KingdomMod.sln -c Release
 ```
 
 `tools\install.ps1` installs MelonLoader for the local game, backs up saves,
-installs KingdomMod's patched Cpp2IL, generates local `refs/`, and optionally
-dumps the class surface used by the docs. `refs/` and generated dumps are
-ignored and must not be committed.
+downloads and builds KingdomMod's patched Cpp2IL from source, generates local
+`refs/`, and optionally dumps the class surface used by the docs. `refs/` and
+generated dumps are ignored and must not be committed.
 
 To smoke-test a local build into `dist/` after changes:
 
@@ -117,8 +117,8 @@ powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 ```
 
 The GitHub workflow packages source plus installer support into an MSI on `v*`
-tags or manual runs. The MSI includes the source payload, patched Cpp2IL,
-MelonLoader, and a pinned .NET SDK; it builds DLLs on the target machine after
+tags or manual runs. The MSI includes source, MelonLoader, and a pinned .NET
+SDK; patched Cpp2IL and KingdomMod DLLs are built on the target machine after
 generating local refs from that user's game install.
 
 ## Writing Mods

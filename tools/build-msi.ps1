@@ -11,6 +11,8 @@ param(
 
 . "$PSScriptRoot\common.ps1"
 
+$ProgressPreference = 'SilentlyContinue'
+
 $root = Get-RepoRoot
 $dotnet = Resolve-Dotnet -RequireSdk
 $installer = Join-Path $root 'installer'
@@ -18,7 +20,6 @@ $artifacts = if ($OutputDir) { $OutputDir } else { Join-Path $root 'artifacts\in
 $payload = Join-Path $artifacts 'payload'
 $support = Join-Path $payload '.kingdommod-installer'
 $sourcePayload = Join-Path $support 'source'
-$patchedCpp2IlPayload = Join-Path $support 'patched-cpp2il'
 $generated = Join-Path $artifacts 'generated'
 
 if (-not $Version) {
@@ -34,7 +35,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
 }
 
 Remove-Item -LiteralPath $artifacts -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $support, $sourcePayload, $patchedCpp2IlPayload, $generated | Out-Null
+New-Item -ItemType Directory -Force -Path $support, $sourcePayload, $generated | Out-Null
 
 $headers = @{ 'User-Agent' = 'kingdommod-msi-builder' }
 $assetName = 'MelonLoader.x64.zip'
@@ -82,24 +83,6 @@ foreach ($requiredSource in @('KingdomMod.sln','Directory.Build.props','src\King
     if (-not (Test-Path (Join-Path $sourcePayload $requiredSource))) {
         throw "Source payload is missing '$requiredSource'."
     }
-}
-
-Write-Host 'Copying patched Cpp2IL payload...'
-$committedCpp2IlSource = Join-Path $installer 'patched-cpp2il\Cpp2IL'
-$committedCpp2IlPluginSource = Join-Path $installer 'patched-cpp2il\Plugins'
-$localCpp2ilSource = Join-Path $root 'build\_tools\Cpp2IL-src\Cpp2IL\bin\Release\net8.0'
-$localCpp2ilPluginSource = Join-Path $root 'build\_tools\Cpp2IL-src\Cpp2IL.Plugin.StrippedCodeRegSupport\bin\Release\net8.0'
-$cpp2ilSource = if (Test-Path (Join-Path $committedCpp2IlSource 'Cpp2IL.exe')) { $committedCpp2IlSource } else { $localCpp2ilSource }
-$cpp2ilPluginSource = if (Test-Path $committedCpp2IlPluginSource) { $committedCpp2IlPluginSource } else { $localCpp2ilPluginSource }
-if (-not (Test-Path (Join-Path $cpp2ilSource 'Cpp2IL.exe'))) {
-    throw "Patched Cpp2IL payload is missing. Restore installer/patched-cpp2il or run tools/install.ps1 locally before building the MSI."
-}
-New-Item -ItemType Directory -Force -Path (Join-Path $patchedCpp2IlPayload 'Cpp2IL') | Out-Null
-Copy-Item -Path (Join-Path $cpp2ilSource '*') -Destination (Join-Path $patchedCpp2IlPayload 'Cpp2IL') -Recurse -Force
-if (Test-Path $cpp2ilPluginSource) {
-    New-Item -ItemType Directory -Force -Path (Join-Path $patchedCpp2IlPayload 'Plugins') | Out-Null
-    Get-ChildItem -LiteralPath $cpp2ilPluginSource -File -Filter 'Cpp2IL.Plugin.StrippedCodeRegSupport.*' -ErrorAction SilentlyContinue |
-        Copy-Item -Destination (Join-Path $patchedCpp2IlPayload 'Plugins') -Force
 }
 
 function Convert-ToWixId {

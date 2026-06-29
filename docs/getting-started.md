@@ -18,11 +18,12 @@ Install:
 5. Launch Kingdom Two Crowns normally.
 6. Press **F1** to open the KingdomMod console.
 
-The MSI installs MelonLoader if needed, installs KingdomMod's patched Cpp2IL,
-generates local interop references from your own game install, extracts a
-bundled .NET SDK for setup-time compilation, builds KingdomMod DLLs on your
-machine, and copies those DLLs into `<KTC>\Mods`. If MelonLoader is already
-present, the installer leaves it owned by you.
+The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
+patched Cpp2IL from source on your machine, generates local interop references
+from your own game install, extracts a bundled .NET SDK for setup-time
+compilation, builds KingdomMod DLLs locally, and copies those DLLs into
+`<KTC>\Mods`. If MelonLoader is already present, the installer leaves it owned
+by you.
 
 ## Uninstall
 
@@ -107,7 +108,7 @@ That script:
 1. Locates your Kingdom Two Crowns install.
 2. Backs up saves to `build/save-backups/<timestamp>/`.
 3. Downloads MelonLoader.
-4. Builds and installs KingdomMod's patched Cpp2IL.
+4. Downloads, patches, builds, and installs KingdomMod's Cpp2IL source patch.
 5. Runs the game once so MelonLoader generates local interop assemblies.
 6. Copies those assemblies into `refs/` so mods can compile.
 
@@ -225,9 +226,10 @@ powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 ```
 
 GitHub Actions packages the source tree and installer support into an MSI on
-`v*` tags and manual workflow runs. The resulting MSI generates `refs/` and
-builds KingdomMod DLLs on the target machine with the SDK bundled in the MSI;
-GitHub never receives or builds against game-derived files.
+`v*` tags and manual workflow runs. The resulting MSI builds patched Cpp2IL and
+KingdomMod DLLs on the target machine with the SDK bundled in the MSI, after it
+generates `refs/` from that user's game install. GitHub never receives or
+builds against game-derived files.
 
 ## Safety Notes
 
