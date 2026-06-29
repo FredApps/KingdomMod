@@ -166,13 +166,15 @@ if (-not (Test-Path (Join-Path $source 'Cpp2IL.exe'))) {
 
     Write-Host "Building patched Cpp2IL (net8.0)..."
     # -f net8.0 is required: the source also lists net472 which we don't build.
-    & $dotnet build $project -c Release -f net8.0 --nologo
+    # SkipRefsCheck=true: refs/ is not yet populated at this point in the MSI flow;
+    # Cpp2IL doesn't use the game interop refs so the guard is irrelevant here.
+    & $dotnet build $project -c Release -f net8.0 --nologo -p:SkipRefsCheck=true
     if ($LASTEXITCODE -ne 0) { throw "Patched Cpp2IL build failed." }
 
     $pluginProj = Join-Path $srcRoot 'Cpp2IL.Plugin.StrippedCodeRegSupport\Cpp2IL.Plugin.StrippedCodeRegSupport.csproj'
     if (Test-Path $pluginProj) {
         Write-Host "Building StrippedCodeRegSupport plugin..."
-        & $dotnet build $pluginProj -c Release -f net8.0 --nologo
+        & $dotnet build $pluginProj -c Release -f net8.0 --nologo -p:SkipRefsCheck=true
         if ($LASTEXITCODE -ne 0) { throw "Plugin build failed." }
     }
 }
