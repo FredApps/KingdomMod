@@ -18,6 +18,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $UnityDependenciesVersion = '6000.0.61'
 $UnityDependenciesSha512 = '8AA951234926A3E0471FBF0C951A362DB310C4823867A11C81861C9887A00BCE68312974F01B6B021BA46E68F618BD0390C12FAAD6E3680E61F05D2E085CB421'
+$MelonLoaderPortableDotnetVersion = '6.0.25'
 
 $script:CleanupGameDir = $null
 $script:CleanupSupportDir = $null
@@ -224,7 +225,41 @@ function Test-DotnetRuntimeMajor {
     }
 }
 
-function Ensure-MelonLoaderDotnet8 {
+function Install-MelonLoaderPortableDotnet6 {
+    param(
+        [Parameter(Mandatory=$true)][string]$GameDir,
+        [Parameter(Mandatory=$true)][string]$SupportDir
+    )
+
+    $melonDotnet = Join-Path $GameDir 'MelonLoader\Dependencies\dotnet'
+    $melonDotnetExe = Join-Path $melonDotnet 'dotnet.exe'
+    if (Test-DotnetRuntimeMajor -DotnetExe $melonDotnetExe -Major 6) {
+        Write-Host 'MelonLoader private .NET runtime already supports .NET 6.'
+        return
+    }
+
+    $assetName = 'dotnet6.windows.x86_64.zip'
+    $zip = Join-Path $SupportDir $assetName
+    if (-not (Test-Path -LiteralPath $zip)) {
+        $downloadUrl = "https://github.com/LavaGang/PortableDotnet/raw/refs/heads/$MelonLoaderPortableDotnetVersion/$assetName"
+        Invoke-DownloadFile -Uri $downloadUrl -OutFile $zip -Stage "Downloading MelonLoader portable .NET runtime: $assetName"
+    }
+
+    Write-Host "Installing MelonLoader portable .NET runtime: $assetName..."
+    $extract = Join-Path $SupportDir 'dotnet6-extract'
+    Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $extract, $melonDotnet | Out-Null
+    Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+    Get-ChildItem -LiteralPath $extract -Force |
+        Copy-Item -Destination $melonDotnet -Recurse -Force
+    Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+
+    if (-not (Test-DotnetRuntimeMajor -DotnetExe $melonDotnetExe -Major 6)) {
+        throw "MelonLoader private .NET runtime still does not report .NET 6 after install: $melonDotnet"
+    }
+}
+
+function Ensure-MelonLoaderDotnetRuntimes {
     param(
         [Parameter(Mandatory=$true)][string]$GameDir,
         [Parameter(Mandatory=$true)][string]$SupportDir,
@@ -233,6 +268,8 @@ function Ensure-MelonLoaderDotnet8 {
 
     $melonDotnet = Join-Path $GameDir 'MelonLoader\Dependencies\dotnet'
     $melonDotnetExe = Join-Path $melonDotnet 'dotnet.exe'
+    Install-MelonLoaderPortableDotnet6 -GameDir $GameDir -SupportDir $SupportDir
+
     if (Test-DotnetRuntimeMajor -DotnetExe $melonDotnetExe -Major 8) {
         Write-Host 'MelonLoader private .NET runtime already supports .NET 8.'
         return
@@ -825,8 +862,8 @@ if ($script:IsUpgradeInstall -and (Test-GeneratedInteropReady -GameDir $game)) {
     $script:InstallStage = 'building and installing patched Cpp2IL'
     Install-PatchedCpp2IL -GameDir $game -SourceRoot $sourceRoot
 }
-$script:InstallStage = 'installing MelonLoader .NET 8 runtime'
-Ensure-MelonLoaderDotnet8 -GameDir $game -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
+$script:InstallStage = 'installing MelonLoader .NET runtimes'
+Ensure-MelonLoaderDotnetRuntimes -GameDir $game -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
 $script:InstallStage = 'generating IL2CPP references'
 Generate-Refs -GameDir $game -SourceRoot $sourceRoot -LaunchTimeoutSec $LaunchTimeoutSec
 
