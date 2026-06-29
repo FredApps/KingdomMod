@@ -39,11 +39,12 @@ references are missing, builds KingdomMod DLLs locally, and copies the loader,
 API, and bundled example mods into the game's `Mods` folder. If MelonLoader is
 already present, KingdomMod leaves that installation owned by you.
 
-The Defender exclusion is required because KingdomMod builds modified mod DLLs
+The Defender exclusion is requested because KingdomMod builds modified mod DLLs
 locally against your own Kingdom Two Crowns install. Those DLLs cannot be
 signed ahead of time, and Windows Defender can quarantine unsigned generated
-DLLs before MelonLoader can run them. If you do not agree to the exclusion, the
-installer exits without installing KingdomMod.
+DLLs before MelonLoader can run them. If Windows policy, third-party antivirus,
+or an already-managed Defender setup blocks the automatic exclusion change, the
+installer continues and shows manual instructions.
 
 For unattended installs, pass the same consent explicitly:
 

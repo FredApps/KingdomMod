@@ -231,39 +231,158 @@ function Add-DefenderExclusion {
     Write-Host "Adding required Windows Defender exclusion: $gamePath"
     Write-Host 'KingdomMod builds unsigned mod DLLs locally. Without this exclusion, Defender can quarantine them before MelonLoader can run them.'
 
-    $escapedGamePath = $gamePath.Replace("'", "''")
-    $command = "Add-MpPreference -ExclusionPath '$escapedGamePath'"
     $isAdmin = ([System.Security.Principal.WindowsPrincipal]([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 
     if ($isAdmin) {
-        Invoke-Expression $command
+        if (Test-DefenderExclusionPresent -GameDir $gamePath) {
+            Write-Host "Windows Defender exclusion already present: $gamePath"
+            return
+        }
+        try {
+            Add-MpPreference -ExclusionPath $gamePath -ErrorAction Stop
+        } catch {
+            if (Test-DefenderExclusionPresent -GameDir $gamePath) {
+                Write-Host "Windows Defender exclusion already present: $gamePath"
+                return
+            }
+            throw
+        }
+        Assert-DefenderExclusionPresent -GameDir $gamePath
         $script:CleanupAddedDefenderExclusion = $true
     } else {
         $tmpPs1 = Join-Path ([System.IO.Path]::GetTempPath()) "kingdommod-defender-$([guid]::NewGuid()).ps1"
-        Set-Content -LiteralPath $tmpPs1 -Value $command -Encoding UTF8
+        $resultPath = Join-Path ([System.IO.Path]::GetTempPath()) "kingdommod-defender-result-$([guid]::NewGuid()).txt"
+        $escapedGamePath = $gamePath.Replace("'", "''")
+        $escapedResultPath = $resultPath.Replace("'", "''")
+        Set-Content -LiteralPath $tmpPs1 -Encoding UTF8 -Value @"
+`$ErrorActionPreference = 'Stop'
+try {
+    `$gamePath = '$escapedGamePath'
+    `$resultPath = '$escapedResultPath'
+    `$existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
+    `$normalized = @(`$existing | ForEach-Object { `$_.TrimEnd('\') })
+    if (`$normalized -contains `$gamePath.TrimEnd('\')) {
+        Set-Content -LiteralPath `$resultPath -Value 'OK_ALREADY' -Encoding ASCII
+        exit 0
+    }
+    try {
+        Add-MpPreference -ExclusionPath `$gamePath -ErrorAction Stop
+    } catch {
+        `$existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
+        `$normalized = @(`$existing | ForEach-Object { `$_.TrimEnd('\') })
+        if (`$normalized -contains `$gamePath.TrimEnd('\')) {
+            Set-Content -LiteralPath `$resultPath -Value 'OK_ALREADY' -Encoding ASCII
+            exit 0
+        }
+        throw
+    }
+    `$existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
+    `$normalized = @(`$existing | ForEach-Object { `$_.TrimEnd('\') })
+    if (`$normalized -notcontains `$gamePath.TrimEnd('\')) {
+        throw "Windows Defender did not report the exclusion after adding it: `$gamePath"
+    }
+    Set-Content -LiteralPath `$resultPath -Value 'OK_ADDED' -Encoding ASCII
+} catch {
+    Set-Content -LiteralPath '$escapedResultPath' -Value `$_.Exception.Message -Encoding UTF8
+    exit 1
+}
+"@
         try {
             $proc = Start-Process -FilePath 'powershell.exe' `
                 -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', $tmpPs1) `
                 -Verb RunAs -Wait -PassThru
             if ($proc.ExitCode -ne 0) {
-                throw "The elevated Defender exclusion command exited with code $($proc.ExitCode)."
+                $detail = ''
+                if (Test-Path -LiteralPath $resultPath) {
+                    $detail = (Get-Content -LiteralPath $resultPath -Raw -ErrorAction SilentlyContinue).Trim()
+                }
+                if (-not $detail) { $detail = "exit code $($proc.ExitCode)" }
+                throw "The elevated Defender exclusion command failed: $detail"
             }
-            $script:CleanupAddedDefenderExclusion = $true
+            if (-not (Test-Path -LiteralPath $resultPath)) {
+                throw 'The elevated Defender exclusion command did not return a verification result.'
+            }
+            $result = (Get-Content -LiteralPath $resultPath -Raw -ErrorAction Stop).Trim()
+            if ($result -ne 'OK_ADDED' -and $result -ne 'OK_ALREADY') {
+                throw "The elevated Defender exclusion command did not verify successfully: $result"
+            }
+            $script:CleanupAddedDefenderExclusion = ($result -eq 'OK_ADDED')
         } finally {
             Remove-Item -LiteralPath $tmpPs1 -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $resultPath -Force -ErrorAction SilentlyContinue
         }
     }
 
+    if (-not $isAdmin) {
+        Write-Host "Windows Defender exclusion added and verified by elevated helper: $gamePath"
+        return
+    }
+
+    Write-Host "Windows Defender exclusion added: $gamePath"
+}
+
+function Assert-DefenderExclusionPresent {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    $gamePath = (Resolve-Path -LiteralPath $GameDir).Path.TrimEnd('\')
+    $existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
+    $normalized = @($existing | ForEach-Object { $_.TrimEnd('\') })
+    if ($normalized -notcontains $gamePath) {
+        throw "Windows Defender exclusion was not added or could not be verified: $gamePath"
+    }
+}
+
+function Test-DefenderExclusionPresent {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
     try {
+        $gamePath = (Resolve-Path -LiteralPath $GameDir).Path.TrimEnd('\')
         $existing = (Get-MpPreference -ErrorAction Stop).ExclusionPath
         $normalized = @($existing | ForEach-Object { $_.TrimEnd('\') })
-        if ($normalized -contains $gamePath) {
-            Write-Host "Windows Defender exclusion added: $gamePath"
-            return
-        }
-    } catch { }
+        return ($normalized -contains $gamePath)
+    } catch {
+        return $false
+    }
+}
 
-    throw 'Windows Defender exclusion was not added. KingdomMod installation cannot continue without it.'
+function Show-DefenderExclusionManualWarning {
+    param(
+        [Parameter(Mandatory=$true)][string]$GameDir,
+        [Parameter(Mandatory=$true)][string]$Reason
+    )
+
+    $message = @"
+KingdomMod could not automatically add or verify the Windows Defender exclusion for:
+
+$GameDir
+
+Reason:
+$Reason
+
+The install will continue. If KingdomMod or MelonLoader DLLs are later quarantined, add this folder manually in Windows Security:
+
+Virus & threat protection -> Manage settings -> Exclusions -> Add or remove exclusions -> Add an exclusion -> Folder
+"@
+
+    Write-Warning $message
+    if ($MsiUiLevel -lt 4) { return }
+
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        [System.Windows.Forms.MessageBox]::Show(
+            $message,
+            'KingdomMod Defender exclusion',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+    } catch {
+        try {
+            $shell = New-Object -ComObject WScript.Shell
+            $shell.Popup($message, 0, 'KingdomMod Defender exclusion', 48) | Out-Null
+        } catch {
+            Write-Host "Could not show Defender exclusion warning: $($_.Exception.Message)"
+        }
+    }
 }
 
 function Set-OfflineGeneration {
@@ -551,7 +670,11 @@ if ($script:IsUpgradeInstall) {
         throw 'Windows Defender exclusion consent was not provided. KingdomMod installation cannot continue.'
     }
     $script:InstallStage = 'adding Windows Defender exclusion'
-    Add-DefenderExclusion -GameDir $game
+    try {
+        Add-DefenderExclusion -GameDir $game
+    } catch {
+        Show-DefenderExclusionManualWarning -GameDir $game -Reason $_.Exception.Message
+    }
 }
 
 $script:InstallStage = 'validating MSI support payload'
