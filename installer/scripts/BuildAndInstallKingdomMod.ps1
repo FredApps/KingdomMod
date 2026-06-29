@@ -590,7 +590,9 @@ if ((Test-Path $mlDir) -or (Test-Path $versionDll)) {
     Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI installed MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
 }
 
-if ($script:IsUpgradeInstall -and (Test-PatchedCpp2ILReady -GameDir $game)) {
+if ($script:IsUpgradeInstall -and (Test-GeneratedInteropReady -GameDir $game)) {
+    Write-Host 'Existing IL2CPP references found; skipping patched Cpp2IL setup on upgrade.'
+} elseif ($script:IsUpgradeInstall -and (Test-PatchedCpp2ILReady -GameDir $game)) {
     Write-Host 'Patched Cpp2IL already installed; skipping Cpp2IL source download/build on upgrade.'
 } else {
     $script:InstallStage = 'building and installing patched Cpp2IL'
