@@ -17,11 +17,13 @@ $script:CleanupSupportDir = $null
 $script:CleanupAddedDefenderExclusion = $false
 $script:CleanupInstalledMelonLoader = $false
 $script:CleanupCopiedDlls = [System.Collections.Generic.List[string]]::new()
+$script:InstallStage = 'starting install'
 
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
 trap {
-    Write-Host "KingdomMod MSI install failed: $($_.Exception.Message)"
+    Write-Host "KingdomMod MSI install failed during $script:InstallStage: $($_.Exception.Message)"
+    if ($script:CleanupSupportDir) { try { Stop-DotnetBuildServers -SupportDir $script:CleanupSupportDir } catch { } }
     try { Invoke-InstallRollback } catch { Write-Host "KingdomMod rollback failed: $($_.Exception.Message)" }
     try { Stop-Transcript | Out-Null } catch { }
     exit 1
@@ -75,7 +77,10 @@ function Resolve-GameDir {
 }
 
 function Resolve-Dotnet {
-    param([Parameter(Mandatory=$true)][string]$SupportDir)
+    param(
+        [Parameter(Mandatory=$true)][string]$SupportDir,
+        [switch]$AllowMissing
+    )
 
     $candidates = [System.Collections.Generic.List[string]]::new()
     $candidates.Add((Join-Path $SupportDir 'dotnet\dotnet.exe'))
@@ -92,7 +97,32 @@ function Resolve-Dotnet {
         } catch { }
     }
 
-    throw 'No .NET SDK found. The bundled SDK could not be used; rerun the MSI or check the KingdomMod installer log.'
+    if ($AllowMissing) { return $null }
+    throw 'No .NET SDK found. The setup-time SDK could not be used; rerun the MSI or check the KingdomMod installer log.'
+}
+
+function Invoke-DownloadFile {
+    param(
+        [Parameter(Mandatory=$true)][string]$Uri,
+        [Parameter(Mandatory=$true)][string]$OutFile,
+        [Parameter(Mandatory=$true)][string]$Stage
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Write-Host "$Stage (attempt $attempt/3)..."
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile -Headers @{ 'User-Agent' = 'kingdommod-msi-installer' }
+            if ((Test-Path -LiteralPath $OutFile) -and ((Get-Item -LiteralPath $OutFile).Length -gt 0)) { return }
+            throw "Downloaded file is missing or empty: $OutFile"
+        } catch {
+            $lastError = $_.Exception.Message
+            Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds ([Math]::Min(10, $attempt * 2))
+        }
+    }
+
+    throw "$Stage failed after 3 attempts: $lastError"
 }
 
 function Install-SetupDotnetSdk {
@@ -108,8 +138,7 @@ function Install-SetupDotnetSdk {
     $sdkZip = Join-Path $SupportDir $assetName
     if (-not (Test-Path $sdkZip)) {
         $downloadUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$DotNetSdkVersion/$assetName"
-        Write-Host "Downloading setup-time .NET SDK: $assetName..."
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $sdkZip -Headers @{ 'User-Agent' = 'kingdommod-msi-installer' }
+        Invoke-DownloadFile -Uri $downloadUrl -OutFile $sdkZip -Stage "Downloading pinned setup-time .NET SDK: $assetName"
     }
 
     Write-Host "Extracting setup-time .NET SDK: $assetName..."
@@ -124,11 +153,42 @@ function Enable-BundledDotnetSdk {
     $dotnetRoot = Join-Path $SupportDir 'dotnet'
     $dotnetExe = Join-Path $dotnetRoot 'dotnet.exe'
     if (-not (Test-Path $dotnetExe)) {
-        throw "Bundled .NET SDK was not extracted to '$dotnetRoot'."
+        throw "Setup-time .NET SDK was not extracted to '$dotnetRoot'."
     }
 
     $env:DOTNET_ROOT = $dotnetRoot
     $env:PATH = "$dotnetRoot;$env:PATH"
+}
+
+function Stop-DotnetBuildServers {
+    param([Parameter(Mandatory=$true)][string]$SupportDir)
+
+    try {
+        $dotnet = Resolve-Dotnet -SupportDir $SupportDir -AllowMissing
+        if ($dotnet) {
+            Write-Host 'Stopping setup-time .NET build servers...'
+            & $dotnet build-server shutdown | Out-Host
+        }
+    } catch {
+        Write-Host "Could not stop .NET build servers: $($_.Exception.Message)"
+    }
+}
+
+function Stop-GameProcesses {
+    param([Parameter(Mandatory=$true)][string]$GameDir)
+
+    $exe = Join-Path $GameDir 'KingdomTwoCrowns.exe'
+    Get-Process -Name KingdomTwoCrowns -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and ($_.Path -ieq $exe) } |
+        ForEach-Object {
+            try {
+                $_.CloseMainWindow() | Out-Null
+                Start-Sleep -Seconds 2
+                if (-not $_.HasExited) { $_.Kill() }
+            } catch {
+                Write-Host "Could not stop Kingdom Two Crowns process $($_.Id): $($_.Exception.Message)"
+            }
+        }
 }
 
 function Add-DefenderExclusion {
@@ -244,8 +304,17 @@ function Generate-Refs {
 
     if (-not (Test-Path $marker)) {
         $exe = Join-Path $GameDir 'KingdomTwoCrowns.exe'
-        Write-Host 'Launching Kingdom Two Crowns once to generate IL2CPP references...'
-        $proc = Start-Process -FilePath $exe -PassThru
+        Write-Host 'Running Kingdom Two Crowns setup pass to generate IL2CPP references...'
+        $oldSteamAppId = $env:SteamAppId
+        $oldSteamGameId = $env:SteamGameId
+        $env:SteamAppId = '701160'
+        $env:SteamGameId = '701160'
+        try {
+            $proc = Start-Process -FilePath $exe -PassThru
+        } finally {
+            if ($null -eq $oldSteamAppId) { Remove-Item Env:\SteamAppId -ErrorAction SilentlyContinue } else { $env:SteamAppId = $oldSteamAppId }
+            if ($null -eq $oldSteamGameId) { Remove-Item Env:\SteamGameId -ErrorAction SilentlyContinue } else { $env:SteamGameId = $oldSteamGameId }
+        }
         $deadline = (Get-Date).AddSeconds($LaunchTimeoutSec)
         while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 3
@@ -295,8 +364,10 @@ if (-not (Test-Path $exe)) {
 if ($DefenderExclusionAccepted -ne '1') {
     throw 'Windows Defender exclusion consent was not provided. KingdomMod installation cannot continue.'
 }
+$script:InstallStage = 'adding Windows Defender exclusion'
 Add-DefenderExclusion -GameDir $game
 
+$script:InstallStage = 'validating MSI support payload'
 $support = Join-Path $game '.kingdommod-installer'
 $script:CleanupSupportDir = $support
 $sourceRoot = Join-Path $support 'source'
@@ -307,8 +378,16 @@ if (-not (Test-Path $zip)) {
 if (-not (Test-Path (Join-Path $sourceRoot 'KingdomMod.sln'))) {
     throw "Missing bundled KingdomMod source payload: $sourceRoot"
 }
-Install-SetupDotnetSdk -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
-Enable-BundledDotnetSdk -SupportDir $support
+
+$script:InstallStage = 'resolving .NET SDK'
+$dotnet = Resolve-Dotnet -SupportDir $support -AllowMissing
+if (-not $dotnet) {
+    $script:InstallStage = 'downloading setup-time .NET SDK'
+    Install-SetupDotnetSdk -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
+    Enable-BundledDotnetSdk -SupportDir $support
+} elseif (Test-Path (Join-Path $support 'dotnet\dotnet.exe')) {
+    Enable-BundledDotnetSdk -SupportDir $support
+}
 
 $mlDir = Join-Path $game 'MelonLoader'
 $versionDll = Join-Path $game 'version.dll'
@@ -324,14 +403,18 @@ if ((Test-Path $mlDir) -or (Test-Path $versionDll)) {
     Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI installed MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
 }
 
+$script:InstallStage = 'building and installing patched Cpp2IL'
 Install-PatchedCpp2IL -GameDir $game -SourceRoot $sourceRoot
+$script:InstallStage = 'generating IL2CPP references'
 Generate-Refs -GameDir $game -SourceRoot $sourceRoot -LaunchTimeoutSec $LaunchTimeoutSec
 
+$script:InstallStage = 'building KingdomMod DLLs'
 $dotnet = Resolve-Dotnet -SupportDir $support
 Write-Host 'Building KingdomMod DLLs on this machine...'
 & $dotnet build (Join-Path $sourceRoot 'KingdomMod.sln') -c Release
 if ($LASTEXITCODE -ne 0) { throw 'KingdomMod build failed.' }
 
+$script:InstallStage = 'copying KingdomMod DLLs'
 $modsDir = Join-Path $game 'Mods'
 New-Item -ItemType Directory -Force -Path $modsDir | Out-Null
 
@@ -352,6 +435,7 @@ foreach ($dll in $dlls) {
 }
 
 Write-Host "KingdomMod built and installed. DLLs copied: $($dlls.Count)"
+Stop-DotnetBuildServers -SupportDir $support
 $script:CleanupCopiedDlls.Clear()
 $script:CleanupInstalledMelonLoader = $false
 $script:CleanupAddedDefenderExclusion = $false

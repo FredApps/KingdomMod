@@ -23,6 +23,30 @@ $source = Join-Path $srcRoot 'Cpp2IL\bin\Release\net8.0'
 $pluginSource = Join-Path $srcRoot 'Cpp2IL.Plugin.StrippedCodeRegSupport\bin\Release\net8.0'
 $target = Join-Path $game 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Cpp2IL'
 
+function Invoke-DownloadFile {
+    param(
+        [Parameter(Mandatory=$true)][string]$Uri,
+        [Parameter(Mandatory=$true)][string]$OutFile,
+        [Parameter(Mandatory=$true)][string]$Stage
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Write-Host "$Stage (attempt $attempt/3)..."
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile -Headers @{ 'User-Agent' = 'kingdommod-cpp2il-builder' }
+            if ((Test-Path -LiteralPath $OutFile) -and ((Get-Item -LiteralPath $OutFile).Length -gt 0)) { return }
+            throw "Downloaded file is missing or empty: $OutFile"
+        } catch {
+            $lastError = $_.Exception.Message
+            Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds ([Math]::Min(10, $attempt * 2))
+        }
+    }
+
+    throw "$Stage failed after 3 attempts: $lastError"
+}
+
 function Replace-ExactText {
     param(
         [Parameter(Mandatory=$true)][string]$Path,
@@ -36,6 +60,23 @@ function Replace-ExactText {
         throw "Could not apply KingdomMod Cpp2IL patch to '$Path'; expected source text was not found."
     }
     Set-Content -LiteralPath $Path -Value ($text.Replace($Old, $New)) -Encoding UTF8 -NoNewline
+}
+
+function Replace-RegexText {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [Parameter(Mandatory=$true)][string]$Pattern,
+        [Parameter(Mandatory=$true)][string]$Replacement,
+        [Parameter(Mandatory=$true)][string]$Description
+    )
+
+    $text = Get-Content -LiteralPath $Path -Raw
+    $newText = [regex]::Replace($text, $Pattern, $Replacement, 1)
+    if ($newText -eq $text) {
+        if ($text -match [regex]::Escape($Replacement)) { return }
+        throw "Could not apply KingdomMod Cpp2IL patch to '$Path'; $Description was not found."
+    }
+    Set-Content -LiteralPath $Path -Value $newText -Encoding UTF8 -NoNewline
 }
 
 function Set-TargetFrameworkText {
@@ -55,6 +96,50 @@ function Set-TargetFrameworkText {
     Set-Content -LiteralPath $Path -Value ([regex]::Replace($text, $pattern, $replacement, 1)) -Encoding UTF8 -NoNewline
 }
 
+function Set-XmlElementText {
+    param(
+        [Parameter(Mandatory=$true)][string]$Path,
+        [Parameter(Mandatory=$true)][string]$Element,
+        [Parameter(Mandatory=$true)][string]$Value
+    )
+
+    $text = Get-Content -LiteralPath $Path -Raw
+    $pattern = "<$Element>[^<]*</$Element>"
+    $replacement = "<$Element>$Value</$Element>"
+    if ($text -match [regex]::Escape($replacement)) { return }
+    if ($text -match $pattern) {
+        Set-Content -LiteralPath $Path -Value ([regex]::Replace($text, $pattern, $replacement, 1)) -Encoding UTF8 -NoNewline
+        return
+    }
+
+    $insertPattern = '</PropertyGroup>'
+    if ($text -notmatch $insertPattern) {
+        throw "Could not find a PropertyGroup in '$Path' while setting <$Element>."
+    }
+    $insert = "        <$Element>$Value</$Element>`r`n    </PropertyGroup>"
+    Set-Content -LiteralPath $Path -Value ([regex]::Replace($text, $insertPattern, $insert, 1)) -Encoding UTF8 -NoNewline
+}
+
+function Set-GlobalJsonSdk {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        Set-Content -LiteralPath $Path -Value "{`r`n  `"sdk`": {`r`n    `"version`": `"8.0.0`",`r`n    `"rollForward`": `"latestMajor`",`r`n    `"allowPrerelease`": false`r`n  }`r`n}`r`n" -Encoding UTF8 -NoNewline
+        return
+    }
+
+    $json = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    if (-not $json.sdk) {
+        $json | Add-Member -MemberType NoteProperty -Name sdk -Value ([pscustomobject]@{})
+    }
+    $json.sdk | Add-Member -MemberType NoteProperty -Name version -Value '8.0.0' -Force
+    $json.sdk | Add-Member -MemberType NoteProperty -Name rollForward -Value 'latestMajor' -Force
+    if ($null -eq $json.sdk.allowPrerelease) {
+        $json.sdk | Add-Member -MemberType NoteProperty -Name allowPrerelease -Value $false
+    }
+    Set-Content -LiteralPath $Path -Value ($json | ConvertTo-Json -Depth 8) -Encoding UTF8
+}
+
 function Ensure-Cpp2IlSource {
     $project = Join-Path $srcRoot 'Cpp2IL\Cpp2IL.csproj'
     $tools = Join-Path $root 'build\_tools'
@@ -69,8 +154,7 @@ function Ensure-Cpp2IlSource {
 
     $zip = Join-Path $tools "Cpp2IL-$Cpp2IlVersion.zip"
     $url = "https://github.com/SamboyCoding/Cpp2IL/archive/refs/tags/$Cpp2IlVersion.zip"
-    Write-Host "Downloading Cpp2IL source ($Cpp2IlVersion)..."
-    Invoke-WebRequest -Uri $url -OutFile $zip -Headers @{ 'User-Agent' = 'kingdommod-cpp2il-builder' }
+    Invoke-DownloadFile -Uri $url -OutFile $zip -Stage "Downloading pinned Cpp2IL source ($Cpp2IlVersion)"
 
     $extract = Join-Path $tools "Cpp2IL-$Cpp2IlVersion"
     Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
@@ -85,6 +169,18 @@ function Ensure-Cpp2IlSource {
 
     Remove-Item -LiteralPath $srcRoot -Recurse -Force -ErrorAction SilentlyContinue
     Move-Item -LiteralPath $expanded.FullName -Destination $srcRoot
+
+    foreach ($required in @(
+        'Cpp2IL\Cpp2IL.csproj',
+        'Cpp2IL.Core\Cpp2IL.Core.csproj',
+        'LibCpp2IL\LibCpp2IL.csproj',
+        'LibCpp2IL\Metadata\Il2CppPropertyDefinition.cs',
+        'Cpp2IL.Core\Utils\AsmResolver\AsmResolverAssemblyPopulator.cs'
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $srcRoot $required))) {
+            throw "Downloaded Cpp2IL source is missing '$required'."
+        }
+    }
 }
 
 function Apply-KingdomModCpp2IlPatch {
@@ -98,32 +194,16 @@ function Apply-KingdomModCpp2IlPatch {
     Set-TargetFrameworkText -Path (Join-Path $srcRoot 'LibCpp2ILTests\LibCpp2ILTests.csproj') -Element 'TargetFramework' -Value 'net8.0'
 
     Set-TargetFrameworkText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Cpp2IL.Core.csproj') -Element 'TargetFrameworks' -Value 'net8.0;net7.0;net6.0;netstandard2.0'
-    Replace-ExactText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Cpp2IL.Core.csproj') -Old '<LangVersion>13</LangVersion>' -New '<LangVersion>preview</LangVersion>'
+    Set-XmlElementText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Cpp2IL.Core.csproj') -Element 'LangVersion' -Value 'preview'
     Set-TargetFrameworkText -Path (Join-Path $srcRoot 'Cpp2IL\Cpp2IL.csproj') -Element 'TargetFrameworks' -Value 'net8.0;net472'
-    Replace-ExactText -Path (Join-Path $srcRoot 'Cpp2IL\Cpp2IL.csproj') -Old @'
-        <TargetFrameworks>net8.0;net472</TargetFrameworks>
-'@ -New @'
-        <TargetFrameworks>net8.0;net472</TargetFrameworks>
-        <RollForward>LatestMajor</RollForward>
-'@
+    Set-XmlElementText -Path (Join-Path $srcRoot 'Cpp2IL\Cpp2IL.csproj') -Element 'RollForward' -Value 'LatestMajor'
     Set-TargetFrameworkText -Path (Join-Path $srcRoot 'LibCpp2IL\LibCpp2IL.csproj') -Element 'TargetFrameworks' -Value 'net8.0;net7.0;net6.0;netstandard2.0'
     Set-TargetFrameworkText -Path (Join-Path $srcRoot 'WasmDisassembler\WasmDisassembler.csproj') -Element 'TargetFrameworks' -Value 'net8.0;net7.0;net6.0;netstandard2.0'
 
-    Replace-ExactText -Path (Join-Path $srcRoot 'global.json') -Old @'
-    "version": "9.0.0",
-    "rollForward": "latestMinor",
-'@ -New @'
-    "version": "8.0.0",
-    "rollForward": "latestMajor",
-'@
+    Set-GlobalJsonSdk -Path (Join-Path $srcRoot 'global.json')
 
-    Replace-ExactText -Path (Join-Path $srcRoot 'LibCpp2IL\Metadata\Il2CppPropertyDefinition.cs') -Old @'
-    public Il2CppTypeReflectionData? PropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter == null ? Setter!.Parameters![0].Type : Getter!.ReturnType;
+    Replace-RegexText -Path (Join-Path $srcRoot 'LibCpp2IL\Metadata\Il2CppPropertyDefinition.cs') -Pattern '(?s)\s*public Il2CppTypeReflectionData\? PropertyType => LibCpp2IlMain\.TheMetadata == null \? null : Getter == null \? Setter!\.Parameters!\[0\]\.Type : Getter!\.ReturnType;\s*public Il2CppType\? RawPropertyType => LibCpp2IlMain\.TheMetadata == null \? null : Getter == null \? Setter!\.Parameters!\[0\]\.RawType : Getter!\.RawReturnType;\s*public bool IsStatic => Getter == null \? Setter!\.IsStatic : Getter!\.IsStatic;' -Description 'stripped property metadata null-safety block' -Replacement @'
 
-    public Il2CppType? RawPropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter == null ? Setter!.Parameters![0].RawType : Getter!.RawReturnType;
-
-    public bool IsStatic => Getter == null ? Setter!.IsStatic : Getter!.IsStatic;
-'@ -New @'
     public Il2CppTypeReflectionData? PropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter != null ? Getter.ReturnType : Setter?.Parameters?[0].Type;
 
     public Il2CppType? RawPropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter != null ? Getter.RawReturnType : Setter?.Parameters?[0].RawType;

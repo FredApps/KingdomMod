@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds the KingdomMod MSI with source, tool, and setup-time SDK payloads.
+  Builds the small KingdomMod MSI with source and setup scripts.
 #>
 param(
     [string]$Version,

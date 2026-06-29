@@ -13,8 +13,8 @@ Install:
 1. Run the MSI.
 2. Confirm or browse to your Kingdom Two Crowns folder.
 3. Enable the required Windows Defender exclusion checkbox when prompted.
-4. Let the installer launch Kingdom Two Crowns once if references must be
-   generated. This can take several minutes the first time.
+4. Let the installer run its setup pass if references must be generated. This
+   can take several minutes the first time.
 5. Finish the installer.
 6. Launch Kingdom Two Crowns normally.
 7. Press **F1** to open the KingdomMod console.
@@ -25,17 +25,24 @@ community-built installer that is not code-signed with an established publisher
 certificate yet; SmartScreen reputation is based on signing and download
 history, not just the contents of the installer.
 
-The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
-patched Cpp2IL from source on your machine, generates local interop references
-from your own game install, downloads a setup-time .NET SDK if needed, builds
-KingdomMod DLLs locally, and copies those DLLs into `<KTC>\Mods`. If
-MelonLoader is already present, the installer leaves it owned by you.
+The MSI is intentionally small. It installs MelonLoader if needed, downloads a
+pinned setup-time .NET SDK only when no usable SDK is present, downloads pinned
+Cpp2IL source, applies KingdomMod's patch locally, runs a setup pass if interop
+references are missing, builds KingdomMod DLLs locally, and copies those DLLs
+into `<KTC>\Mods`. If MelonLoader is already present, the installer leaves it
+owned by you.
 
 The Defender exclusion is required because KingdomMod builds modified mod DLLs
 locally against your own Kingdom Two Crowns install. Those DLLs cannot be
 signed ahead of time, and Windows Defender can quarantine unsigned generated
 DLLs before MelonLoader can run them. If you do not agree to the exclusion, the
 installer exits without installing KingdomMod.
+
+For unattended installs, pass the same consent explicitly:
+
+```powershell
+msiexec /i KingdomMod-<version>-x64.msi INSTALLFOLDER="<KTC>" DEFENDEREXCLUSIONACCEPTED=1
+```
 
 ## Uninstall
 
@@ -97,8 +104,9 @@ your own artwork.
 
 Normal install and developer setup now share the same underlying build model:
 KingdomMod DLLs are compiled on the machine that owns the game. The MSI does
-that automatically for players with its bundled setup-time SDK. Clone the repo
-only if you want to edit source, write mods, or prepare a release.
+that automatically for players and downloads setup dependencies during install
+only when needed. Clone the repo only if you want to edit source, write mods,
+or prepare a release.
 
 Prerequisites:
 
@@ -207,8 +215,15 @@ console controls, Harmony patches, pack APIs, and SDK member tables.
 - **`UnityDependencies_<ver>.zip does not Exist!`:** the first interop
   generation must run online. Run `tools/install.ps1` once.
 - **MSI install fails during build:** open
-  `%TEMP%\KingdomModMsi-BuildAndInstall.log`. Normal installs use the SDK
-  bundled in the MSI, so a system-wide .NET install is not required.
+  `%TEMP%\KingdomModMsi-BuildAndInstall.log`. The log names the failed stage,
+  such as SDK download, Cpp2IL download, Cpp2IL patch/build, interop
+  generation, or KingdomMod build.
+- **MSI install fails while offline:** reconnect and rerun the MSI. The small
+  MSI downloads the setup-time .NET SDK when needed and downloads pinned Cpp2IL
+  source during install.
+- **MSI Cpp2IL patch/build fails:** rerun once after checking the log. If the
+  failure repeats, share `%TEMP%\KingdomModMsi-BuildAndInstall.log`; the patch
+  is pinned and should not depend on changing upstream source text.
 - **Developer build cannot find .NET:** install the .NET 8 SDK or newer, then
   rerun developer setup.
 - **A mod's F-key does nothing:** open F1 and check Shortcuts. If the mod is not
@@ -238,9 +253,10 @@ powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 ```
 
 GitHub Actions packages the source tree and installer support into an MSI on
-`v*` tags and manual workflow runs. The resulting MSI builds patched Cpp2IL and
-KingdomMod DLLs on the target machine with a setup-time SDK downloaded during
-install, after it generates `refs/` from that user's game install. GitHub never
+`v*` tags and manual workflow runs. The resulting MSI stays small: it includes
+source, MelonLoader, and setup scripts, then downloads the setup-time SDK when
+needed and pinned Cpp2IL source during install. KingdomMod DLLs are built after
+the installer generates `refs/` from that user's game install. GitHub never
 receives or builds against game-derived files.
 
 ## Safety Notes

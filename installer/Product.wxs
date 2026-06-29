@@ -124,7 +124,7 @@
       Execute="deferred"
       Impersonate="yes"
       Return="check"
-      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot;" />
+      ExeCommand="powershell.exe [BuildAndInstallKingdomMod]" />
 
     <CustomAction
       Id="UninstallOwnedMelonLoader"
@@ -132,9 +132,21 @@
       Execute="deferred"
       Impersonate="no"
       Return="check"
-      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[#UninstallMelonLoaderScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot;" />
+      ExeCommand="powershell.exe [UninstallOwnedMelonLoader]" />
+
+    <CustomAction
+      Id="SetBuildAndInstallKingdomModData"
+      Property="BuildAndInstallKingdomMod"
+      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot;" />
+
+    <CustomAction
+      Id="SetUninstallOwnedMelonLoaderData"
+      Property="UninstallOwnedMelonLoader"
+      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#UninstallMelonLoaderScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot;" />
 
     <InstallExecuteSequence>
+      <Custom Action="SetBuildAndInstallKingdomModData" Before="BuildAndInstallKingdomMod" Condition="NOT Installed" />
+      <Custom Action="SetUninstallOwnedMelonLoaderData" Before="UninstallOwnedMelonLoader" Condition="REMOVE=&quot;ALL&quot;" />
       <Custom Action="BuildAndInstallKingdomMod" After="InstallFiles" Condition="NOT Installed" />
       <Custom Action="UninstallOwnedMelonLoader" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
     </InstallExecuteSequence>

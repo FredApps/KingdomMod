@@ -21,7 +21,7 @@ ask questions, and help grow the Kingdom Two Crowns modding community.
 2. Run the MSI.
 3. Confirm or browse to your Kingdom Two Crowns folder.
 4. Enable the required Windows Defender exclusion checkbox when prompted.
-5. Let the installer launch the game once if interop references must be
+5. Let the installer run its setup pass if interop references must be
    generated. This first pass can take several minutes.
 6. Launch the game normally.
 7. Press **F1** in-game to open the KingdomMod console.
@@ -32,18 +32,24 @@ community-built installer that is not code-signed with an established publisher
 certificate yet; SmartScreen reputation is based on signing and download
 history, not just the contents of the installer.
 
-The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
-patched Cpp2IL from source on your machine, generates local references from
-your own game install, downloads a setup-time .NET SDK if needed, builds
-KingdomMod DLLs locally, and copies the loader, API, and bundled example mods
-into the game's `Mods` folder. If MelonLoader is already present, KingdomMod
-leaves that installation owned by you.
+The MSI is intentionally small. It installs MelonLoader if needed, downloads a
+pinned setup-time .NET SDK only when no usable SDK is present, downloads pinned
+Cpp2IL source, applies KingdomMod's patch locally, runs a setup pass if
+references are missing, builds KingdomMod DLLs locally, and copies the loader,
+API, and bundled example mods into the game's `Mods` folder. If MelonLoader is
+already present, KingdomMod leaves that installation owned by you.
 
 The Defender exclusion is required because KingdomMod builds modified mod DLLs
 locally against your own Kingdom Two Crowns install. Those DLLs cannot be
 signed ahead of time, and Windows Defender can quarantine unsigned generated
 DLLs before MelonLoader can run them. If you do not agree to the exclusion, the
 installer exits without installing KingdomMod.
+
+For unattended installs, pass the same consent explicitly:
+
+```powershell
+msiexec /i KingdomMod-<version>-x64.msi INSTALLFOLDER="<KTC>" DEFENDEREXCLUSIONACCEPTED=1
+```
 
 ## Uninstall
 
@@ -106,9 +112,9 @@ enabled. A first-run popup warns about multiplayer desync and cloud-save risk.
 
 Normal install and developer setup share the same core model: KingdomMod DLLs
 compile on the machine that owns the game, after local references are generated
-from that game install. The MSI automates that for players and brings its own
-setup-time SDK. Clone the repo only if you want to change KingdomMod, write
-mods, or prepare releases:
+from that game install. The MSI automates that for players and downloads
+setup dependencies during install only when needed. Clone the repo only if you
+want to change KingdomMod, write mods, or prepare releases:
 
 ```powershell
 git clone https://github.com/FredApps/KingdomMod.git
@@ -135,9 +141,10 @@ powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 ```
 
 The GitHub workflow packages source plus installer support into an MSI on `v*`
-tags or manual runs. The MSI includes source, MelonLoader, and a pinned .NET
-SDK; patched Cpp2IL and KingdomMod DLLs are built on the target machine after
-generating local refs from that user's game install.
+tags or manual runs. The MSI includes source, MelonLoader, and setup scripts;
+it does not bundle the .NET SDK, Cpp2IL source, or patched Cpp2IL binaries.
+Those setup dependencies are downloaded on the target machine, and KingdomMod
+DLLs are built after generating local refs from that user's game install.
 
 ## Writing Mods
 
