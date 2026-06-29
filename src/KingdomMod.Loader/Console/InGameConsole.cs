@@ -434,8 +434,8 @@ namespace KingdomMod.Loader.Console
             var cur = Kingdom.Economy.CoinCheat;
             GUILayout.BeginHorizontal();
             DrawCoinCheatOption("None",      CoinCheatMode.None,     cur, "No coin cheat; vanilla economy.");
-            DrawCoinCheatOption("No drops",  CoinCheatMode.NoTax,    cur, "Coins do not drop from your purse or get shed by overflow.");
-            DrawCoinCheatOption("Infinite",  CoinCheatMode.Infinite, cur, "Purchases do not reduce your purse.");
+            DrawCoinCheatOption("No drops",  CoinCheatMode.NoTax,    cur, "Coins do not drop from your purse or get shed by overflow; held gems, souls, and skulls appear beside the coin counter.");
+            DrawCoinCheatOption("Infinite",  CoinCheatMode.Infinite, cur, "Purchases and item costs do not reduce wallet currencies such as coins, gems, souls, or skulls.");
             GUILayout.EndHorizontal();
         }
 

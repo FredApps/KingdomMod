@@ -24,7 +24,7 @@
 //   * Wallet.RemoveCurrency     — "Infinite money" enforcement. The static
 //     Wallet.InfiniteMoney flag also turned out to be vestigial on this
 //     build; we scope to player wallets so NPC stashes (Squires, Merchants)
-//     still spend coins normally.
+//     still spend their own coins/items normally.
 
 using System.Collections.Generic;
 using System.Reflection;
@@ -61,6 +61,12 @@ namespace KingdomMod.Loader.Patches
             catch { }
             _cache[p] = (isPlayer, now + CacheLifetimeSeconds);
             return isPlayer;
+        }
+
+        public static bool IsInfiniteProtectedCurrency(CurrencyType type)
+        {
+            // Crown is a gameplay/loss state, not a spendable item counter.
+            return type != CurrencyType.Crown;
         }
     }
 
@@ -131,16 +137,17 @@ namespace KingdomMod.Loader.Patches
     /// DebugDisableTaxes). We read it ourselves: when on, skip the player
     /// wallet's debit path. NPC wallets (Squires, Merchants paying their own
     /// stash) fall through to the original implementation so their economies
-    /// keep functioning. Our F1 "give coins" path uses the Coins setter
-    /// directly and doesn't go through RemoveCurrency, so it still works.
+    /// keep functioning. This applies to every wallet-backed CurrencyType, not
+    /// only coins; reward/increase paths still run through SetCurrency/FastSet.
     /// </summary>
     [HarmonyPatch(typeof(Wallet), nameof(Wallet.RemoveCurrency))]
     internal static class WalletRemoveCurrencyPatch
     {
         private static bool _logged;
-        private static bool Prefix(Wallet __instance)
+        private static bool Prefix(Wallet __instance, CurrencyType currencyType)
         {
             if (!Wallet.InfiniteMoney) return true;
+            if (!WalletScope.IsInfiniteProtectedCurrency(currencyType)) return true;
             if (!WalletScope.IsPlayerWallet(__instance)) return true;
             if (!_logged) { _logged = true; MelonLogger.Msg("[KingdomMod.Loader] Infinite-money blocked Wallet.RemoveCurrency."); }
             return false;
@@ -158,6 +165,7 @@ namespace KingdomMod.Loader.Patches
         private static bool Prefix(Wallet __instance, CurrencyType currencyType, int value)
         {
             if (!Wallet.InfiniteMoney) return true;
+            if (!WalletScope.IsInfiniteProtectedCurrency(currencyType)) return true;
             if (!WalletScope.IsPlayerWallet(__instance)) return true;
             if (value >= __instance.GetCurrency(currencyType)) return true;
             if (!_logged) { _logged = true; MelonLogger.Msg("[KingdomMod.Loader] Infinite-money blocked Wallet.SetCurrency debit."); }
@@ -173,9 +181,10 @@ namespace KingdomMod.Loader.Patches
     internal static class WalletFastSetCurrencyPatch
     {
         private static bool _logged;
-        private static bool Prefix(Wallet __instance, int incCurrency)
+        private static bool Prefix(Wallet __instance, CurrencyType currencyType, int incCurrency)
         {
             if (!Wallet.InfiniteMoney) return true;
+            if (!WalletScope.IsInfiniteProtectedCurrency(currencyType)) return true;
             if (incCurrency >= 0) return true;
             if (!WalletScope.IsPlayerWallet(__instance)) return true;
             if (!_logged) { _logged = true; MelonLogger.Msg("[KingdomMod.Loader] Infinite-money blocked Wallet.FastSetCurrency debit."); }

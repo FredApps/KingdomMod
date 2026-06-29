@@ -277,8 +277,8 @@ Kingdom.IsReady     // true when the Managers singleton exists
 
 | Member | Type | Notes |
 |---|---|---|
-| `InfiniteMoney` | `bool` (r/w) | Maps to `Wallet.InfiniteMoney`, the game's own debug flag. |
-| `DisableTaxes` | `bool` (r/w) | Maps to `Wallet.DebugDisableTaxes`. |
+| `InfiniteMoney` | `bool` (r/w) | Maps to `Wallet.InfiniteMoney`; the loader enforces it for player wallet currencies such as coins, gems, shades/souls, skulls, merchandise, candles, and eggs. |
+| `DisableTaxes` | `bool` (r/w) | Maps to `Wallet.DebugDisableTaxes`; hides the bag and shows coin plus nonzero item counters in the HUD. |
 | `Coins` / `Gems` | `int` (r/w) | Local wallet only. |
 | `Wallets` | `IEnumerable<Wallet>` | All wallets in the scene. |
 | `LocalWallet` | `Wallet` | First/local wallet, or null. |
