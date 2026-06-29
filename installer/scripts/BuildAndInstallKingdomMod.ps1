@@ -6,6 +6,10 @@ param(
 
     [string]$PreviousInstallFolder,
 
+    [string]$PreviousOwnsMelonLoader,
+
+    [string]$PreviousLegacyOwnsMelonLoader,
+
     [int]$MsiUiLevel = 2,
 
     [string]$DotNetSdkVersion = '8.0.421',
@@ -28,6 +32,7 @@ $script:CleanupCopiedDlls = [System.Collections.Generic.List[string]]::new()
 $script:InstallStage = 'starting install'
 $script:SetupLaunchNoticeShown = $false
 $script:IsUpgradeInstall = -not [string]::IsNullOrWhiteSpace($PreviousInstallFolder)
+$script:InstallerRegistryPath = 'HKLM:\Software\KingdomMod'
 
 $logPath = Join-Path ([System.IO.Path]::GetTempPath()) 'KingdomModMsi-BuildAndInstall.log'
 try { Start-Transcript -Path $logPath -Append | Out-Null } catch { }
@@ -85,6 +90,27 @@ function Resolve-GameDir {
     $trimmed = $Path.Trim().Trim('"')
     $resolved = (Resolve-Path -LiteralPath $trimmed).Path
     return $resolved.TrimEnd('\')
+}
+
+function Test-InstallerTruthy {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    $normalized = $Value.Trim().Trim('"')
+    return ($normalized -and $normalized -ne '0' -and $normalized -ne '#0' -and $normalized -ine 'false')
+}
+
+function Set-KingdomModInstallerState {
+    param(
+        [Parameter(Mandatory=$true)][string]$GameDir,
+        [Parameter(Mandatory=$true)][bool]$OwnsMelonLoader,
+        [Parameter(Mandatory=$true)][bool]$DefenderExclusionAdded
+    )
+
+    New-Item -Path $script:InstallerRegistryPath -Force | Out-Null
+    New-ItemProperty -Path $script:InstallerRegistryPath -Name 'InstallFolder' -Value $GameDir -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $script:InstallerRegistryPath -Name 'OwnsMelonLoader' -Value ([int]$OwnsMelonLoader) -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path $script:InstallerRegistryPath -Name 'DefenderExclusionAdded' -Value ([int]$DefenderExclusionAdded) -PropertyType DWord -Force | Out-Null
 }
 
 function Resolve-Dotnet {
@@ -873,14 +899,23 @@ if (-not $dotnet) {
 $mlDir = Join-Path $game 'MelonLoader'
 $versionDll = Join-Path $game 'version.dll'
 $ownsMarker = Join-Path $support 'owns-melonloader'
+$previousOwnedMelonLoader = (Test-InstallerTruthy -Value $PreviousOwnsMelonLoader) -or -not [string]::IsNullOrWhiteSpace($PreviousLegacyOwnsMelonLoader)
+$installerOwnsMelonLoader = $false
 
 if ((Test-Path $mlDir) -or (Test-Path $versionDll)) {
-    Write-Host 'MelonLoader already exists; KingdomMod will leave it owned by the user.'
-    Remove-Item -LiteralPath $ownsMarker -Force -ErrorAction SilentlyContinue
+    if ($previousOwnedMelonLoader) {
+        Write-Host 'Existing MelonLoader was previously installed by KingdomMod MSI; preserving installer ownership.'
+        $installerOwnsMelonLoader = $true
+        Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI owns MelonLoader (migrated on $(Get-Date -Format o))" -Encoding UTF8
+    } else {
+        Write-Host 'MelonLoader already exists; KingdomMod will leave it owned by the user.'
+        Remove-Item -LiteralPath $ownsMarker -Force -ErrorAction SilentlyContinue
+    }
 } else {
     Write-Host 'Installing bundled MelonLoader...'
     Expand-Archive -LiteralPath $zip -DestinationPath $game -Force
     $script:CleanupInstalledMelonLoader = $true
+    $installerOwnsMelonLoader = $true
     Set-Content -LiteralPath $ownsMarker -Value "KingdomMod MSI installed MelonLoader on $(Get-Date -Format o)" -Encoding UTF8
 }
 
@@ -925,6 +960,8 @@ foreach ($dll in $dlls) {
 
 Write-Host "KingdomMod built and installed. DLLs copied: $($dlls.Count)"
 Stop-DotnetBuildServers -SupportDir $support
+$script:InstallStage = 'recording installer state'
+Set-KingdomModInstallerState -GameDir $game -OwnsMelonLoader $installerOwnsMelonLoader -DefenderExclusionAdded $script:CleanupAddedDefenderExclusion
 $script:CleanupCopiedDlls.Clear()
 $script:CleanupInstalledMelonLoader = $false
 $script:CleanupAddedDefenderExclusion = $false

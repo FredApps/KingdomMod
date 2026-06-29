@@ -23,6 +23,24 @@
         Type="raw" />
     </Property>
 
+    <Property Id="PREVIOUSKINGDOMMODOWNSMELONLOADER" Secure="yes">
+      <RegistrySearch
+        Id="PreviousOwnsMelonLoaderSearch"
+        Root="HKLM"
+        Key="Software\KingdomMod"
+        Name="OwnsMelonLoader"
+        Type="raw" />
+    </Property>
+
+    <Property Id="PREVIOUSKINGDOMMODLEGACYOWNSMELONLOADER" Secure="yes">
+      <DirectorySearch
+        Id="PreviousLegacyOwnsMelonLoaderSearch"
+        Path="[PREVIOUSKINGDOMMODINSTALLFOLDER_RAW]\.kingdommod-installer"
+        Depth="0">
+        <FileSearch Id="PreviousLegacyOwnsMelonLoaderFileSearch" Name="owns-melonloader" />
+      </DirectorySearch>
+    </Property>
+
     <Property Id="STEAMKINGDOMTWOCROWNSFOLDER_RAW">
       <RegistrySearch
         Id="SteamKingdomTwoCrownsFolderSearch"
@@ -246,7 +264,7 @@
     <CustomAction
       Id="SetBuildAndInstallKingdomModData"
       Property="BuildAndInstallKingdomMod"
-      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot; -PreviousInstallFolder &quot;[PREVIOUSKINGDOMMODINSTALLFOLDER]&quot; -MsiUiLevel &quot;[UILevel]&quot;" />
+      Value="-NoProfile -ExecutionPolicy Bypass -File &quot;[#BuildAndInstallScript]&quot; -GameDir &quot;[INSTALLFOLDER].&quot; -DefenderExclusionAccepted &quot;[DEFENDEREXCLUSIONACCEPTED]&quot; -PreviousInstallFolder &quot;[PREVIOUSKINGDOMMODINSTALLFOLDER]&quot; -PreviousOwnsMelonLoader &quot;[PREVIOUSKINGDOMMODOWNSMELONLOADER]&quot; -PreviousLegacyOwnsMelonLoader &quot;[PREVIOUSKINGDOMMODLEGACYOWNSMELONLOADER]&quot; -MsiUiLevel &quot;[UILevel]&quot;" />
 
     <CustomAction
       Id="SetUninstallOwnedMelonLoaderData"

@@ -43,6 +43,21 @@ $zip = Join-Path $support $assetName
 Write-Host "Downloading $assetName ($MelonLoaderVersion)..."
 Invoke-WebRequest -Uri $downloadUrl -OutFile $zip -Headers $headers
 
+Write-Host 'Recording MelonLoader archive root paths...'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+try {
+    $ownedRoots = $archive.Entries |
+        ForEach-Object {
+            ($_.FullName -replace '/', '\').Trim('\') -split '\\' | Select-Object -First 1
+        } |
+        Where-Object { $_ } |
+        Sort-Object -Unique
+} finally {
+    $archive.Dispose()
+}
+Set-Content -LiteralPath (Join-Path $support 'melonloader-owned-roots.txt') -Value $ownedRoots -Encoding UTF8
+
 Copy-Item -LiteralPath (Join-Path $installer 'scripts\BuildAndInstallKingdomMod.ps1') -Destination $support -Force
 Copy-Item -LiteralPath (Join-Path $installer 'scripts\UninstallMelonLoader.ps1') -Destination $support -Force
 Set-Content -LiteralPath (Join-Path $support 'kingdommod-msi.txt') -Value "KingdomMod $Version installer support files." -Encoding UTF8

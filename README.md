@@ -58,9 +58,12 @@ Use Windows **Settings -> Apps -> Installed apps -> KingdomMod -> Uninstall**,
 or run the MSI again and choose remove.
 
 Uninstall removes KingdomMod-owned files. If the MSI installed MelonLoader and
-no unrelated mod DLLs are present, it also removes that owned MelonLoader copy.
-If MelonLoader existed before KingdomMod, or other non-KingdomMod mods are
-present, MelonLoader is left in place.
+no unrelated content is present under `Mods`, `Plugins`, or `UserLibs`, it also
+removes that owned MelonLoader copy. If MelonLoader existed before KingdomMod,
+or other non-KingdomMod content is present there, MelonLoader is left in place.
+The MSI also removes its support/cache folders and any Defender exclusion that
+KingdomMod added itself. User data, packs, preferences, logs, dumps, and save
+backups are preserved.
 
 ## What You Can Make
 
