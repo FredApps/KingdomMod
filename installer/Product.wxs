@@ -12,7 +12,7 @@
 
     <Property Id="DEFENDEREXCLUSIONACCEPTED" Secure="yes" />
 
-    <Property Id="PREVIOUSKINGDOMMODINSTALLFOLDER" Secure="yes">
+    <Property Id="PREVIOUSKINGDOMMODINSTALLFOLDER_RAW" Secure="yes">
       <RegistrySearch
         Id="PreviousInstalledGameFolderSearch"
         Root="HKLM"
@@ -21,13 +21,7 @@
         Type="raw" />
     </Property>
 
-    <Property Id="INSTALLFOLDER">
-      <RegistrySearch
-        Id="InstalledGameFolderSearch"
-        Root="HKLM"
-        Key="Software\KingdomMod"
-        Name="InstallFolder"
-        Type="raw" />
+    <Property Id="STEAMKINGDOMTWOCROWNSFOLDER_RAW">
       <RegistrySearch
         Id="SteamKingdomTwoCrownsFolderSearch"
         Root="HKLM"
@@ -35,6 +29,29 @@
         Name="InstallLocation"
         Type="raw" />
     </Property>
+
+    <Property Id="PREVIOUSKINGDOMMODINSTALLFOLDER" Secure="yes">
+      <DirectorySearch
+        Id="PreviousInstalledGameFolderDirectorySearch"
+        Path="[PREVIOUSKINGDOMMODINSTALLFOLDER_RAW]"
+        Depth="0">
+        <FileSearch Id="PreviousInstalledGameExeSearch" Name="KingdomTwoCrowns.exe" />
+      </DirectorySearch>
+    </Property>
+
+    <Property Id="STEAMKINGDOMTWOCROWNSFOLDER">
+      <DirectorySearch
+        Id="SteamKingdomTwoCrownsFolderDirectorySearch"
+        Path="[STEAMKINGDOMTWOCROWNSFOLDER_RAW]"
+        Depth="0">
+        <FileSearch Id="SteamKingdomGameExeSearch" Name="KingdomTwoCrowns.exe" />
+      </DirectorySearch>
+    </Property>
+
+    <Property Id="INSTALLFOLDER" Secure="yes" />
+
+    <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromPreviousKingdomMod" Value="[PREVIOUSKINGDOMMODINSTALLFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="PREVIOUSKINGDOMMODINSTALLFOLDER AND NOT Installed" />
+    <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteam" Value="[STEAMKINGDOMTWOCROWNSFOLDER_RAW]" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMKINGDOMTWOCROWNSFOLDER AND NOT Installed" />
 
     <WixVariable Id="WixUILicenseRtf" Value="$(var.InstallerDir)\License.rtf" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
