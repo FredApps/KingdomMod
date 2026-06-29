@@ -31,7 +31,6 @@ namespace KingdomMod.Loader.Console
         private bool _showMounts;
         private GUIStyle _boldLabel;
         private GUIStyle _titleLabel;
-        private Texture2D _cursorTexture;
         private readonly List<Steed> _mountOptions = new();
         private readonly List<string> _log = new()
         {
@@ -45,10 +44,9 @@ namespace KingdomMod.Loader.Console
         private const float WindowHeight = 296f;       // ~30% shorter top edge (was 423)
         private const float WindowBottomMargin = 24f;
 
-        // Cursor state captured when the console opens, restored when it closes â€”
-        // KTC keeps the system cursor hidden during gameplay so IMGUI has nothing
-        // to render. Drawing our own software pointer avoids a visible fight with
-        // the game repeatedly hiding the hardware cursor.
+        // Cursor state captured when the console opens, restored when it closes.
+        // KTC keeps the system cursor hidden during gameplay, so the console
+        // forces the normal OS cursor visible while the F1 panel is open.
         private bool _savedCursorVisible;
         private CursorLockMode _savedCursorLock;
         private bool _cursorOverridden;
@@ -105,7 +103,7 @@ namespace KingdomMod.Loader.Console
             _savedCursorLock = Cursor.lockState;
             _cursorOverridden = true;
             _cursorSuspended = false;
-            Cursor.visible = false;
+            Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
         }
 
@@ -130,7 +128,7 @@ namespace KingdomMod.Loader.Console
         private void MaintainCursorOverride()
         {
             if (!_cursorOverridden) return;
-            Cursor.visible = false;
+            Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
         }
 
@@ -162,7 +160,6 @@ namespace KingdomMod.Loader.Console
 
             _window = GUILayout.Window(0xCAB1ED, _window, (GUI.WindowFunction)DrawWindow, "KingdomMod  (F1 to hide)");
             ReserveConsoleMouseRegion();
-            DrawSoftwareCursor();
         }
 
         private void DrawWindow(int id)
@@ -351,63 +348,6 @@ namespace KingdomMod.Loader.Console
         {
             _boldLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
             _titleLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
-            _cursorTexture ??= CreateCursorTexture();
-        }
-
-        private void DrawSoftwareCursor()
-        {
-            if (Event.current == null) return;
-            var p = Event.current.mousePosition;
-            if (_cursorTexture != null)
-                GUI.DrawTexture(new Rect(p.x, p.y, _cursorTexture.width, _cursorTexture.height), _cursorTexture);
-        }
-
-        private static Texture2D CreateCursorTexture()
-        {
-            string[] rows =
-            {
-                "X...............",
-                "XX..............",
-                "XOX.............",
-                "XOOX............",
-                "XOOOX...........",
-                "XOOOOX..........",
-                "XOOOOOX.........",
-                "XOOOOOOX........",
-                "XOOOOOOOX.......",
-                "XOOOOOOOOX......",
-                "XOOOOOOOOOX.....",
-                "XOOOOOXXXXX.....",
-                "XOOXOOX.........",
-                "XOX.XOOX........",
-                "XX..XOOX........",
-                "X....XOOX.......",
-                ".....XOOX.......",
-                "......XX........"
-            };
-
-            int width = rows[0].Length;
-            int height = rows.Length;
-            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
-            {
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
-            };
-
-            var clear = new Color(0f, 0f, 0f, 0f);
-            for (int y = 0; y < height; y++)
-            {
-                string row = rows[y];
-                for (int x = 0; x < width; x++)
-                {
-                    Color color = clear;
-                    if (row[x] == 'X') color = Color.black;
-                    else if (row[x] == 'O') color = Color.white;
-                    texture.SetPixel(x, height - y - 1, color);
-                }
-            }
-            texture.Apply(false, true);
-            return texture;
         }
 
         private void ReserveConsoleMouseRegion()
