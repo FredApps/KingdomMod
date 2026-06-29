@@ -47,6 +47,22 @@ function Invoke-DownloadFile {
     throw "$Stage failed after 3 attempts: $lastError"
 }
 
+function Test-ZipArchive {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+        try {
+            return ($zip.Entries.Count -gt 0)
+        } finally {
+            $zip.Dispose()
+        }
+    } catch {
+        return $false
+    }
+}
+
 function Replace-ExactText {
     param(
         [Parameter(Mandatory=$true)][string]$Path,
@@ -156,6 +172,13 @@ function Ensure-Cpp2IlSource {
     $zip = Join-Path $tools "Cpp2IL-$Cpp2IlVersion.zip"
     $url = "https://github.com/SamboyCoding/Cpp2IL/archive/refs/tags/$Cpp2IlVersion.zip"
     Invoke-DownloadFile -Uri $url -OutFile $zip -Stage "Downloading pinned Cpp2IL source ($Cpp2IlVersion)"
+    if (-not (Test-ZipArchive -Path $zip)) {
+        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+        Invoke-DownloadFile -Uri $url -OutFile $zip -Stage "Re-downloading corrupt Cpp2IL source archive ($Cpp2IlVersion)"
+        if (-not (Test-ZipArchive -Path $zip)) {
+            throw "Downloaded Cpp2IL archive is not a valid zip file: $zip"
+        }
+    }
 
     $extract = Join-Path $tools "Cpp2IL-$Cpp2IlVersion"
     Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
@@ -212,10 +235,7 @@ function Apply-KingdomModCpp2IlPatch {
     public bool IsStatic => Getter != null ? Getter.IsStatic : Setter?.IsStatic ?? false;
 '@
 
-    Replace-ExactText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Utils\AsmResolver\AsmResolverAssemblyPopulator.cs') -Old @'
-                foreach (var property in type.Properties)
-                    CopyCustomAttributes(property, property.GetExtraData<PropertyDefinition>("AsmResolverProperty")!.CustomAttributes);
-'@ -New @'
+    Replace-RegexText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Utils\AsmResolver\AsmResolverAssemblyPopulator.cs') -Pattern 'foreach\s*\(\s*var\s+property\s+in\s+type\.Properties\s*\)\s*CopyCustomAttributes\s*\(\s*property\s*,\s*property\.GetExtraData<PropertyDefinition>\("AsmResolverProperty"\)!\.CustomAttributes\s*\)\s*;' -Description 'AsmResolver property custom attribute null-safety block' -AlreadyPatchedPattern 'var\s+asmProp\s*=\s*property\.GetExtraData<PropertyDefinition>\("AsmResolverProperty"\)' -Replacement @'
                 foreach (var property in type.Properties)
                 {
                     var asmProp = property.GetExtraData<PropertyDefinition>("AsmResolverProperty");
@@ -224,12 +244,7 @@ function Apply-KingdomModCpp2IlPatch {
                 }
 '@
 
-    Replace-ExactText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Utils\AsmResolver\AsmResolverAssemblyPopulator.cs') -Old @'
-        foreach (var propertyCtx in typeContext.Properties)
-        {
-            var propertyTypeSig = propertyCtx.ToTypeSignature(importer.TargetModule);
-            var propertySignature = propertyCtx.IsStatic
-'@ -New @'
+    Replace-RegexText -Path (Join-Path $srcRoot 'Cpp2IL.Core\Utils\AsmResolver\AsmResolverAssemblyPopulator.cs') -Pattern 'foreach\s*\(\s*var\s+propertyCtx\s+in\s+typeContext\.Properties\s*\)\s*\{\s*var\s+propertyTypeSig\s*=\s*propertyCtx\.ToTypeSignature\(importer\.TargetModule\)\s*;\s*var\s+propertySignature\s*=\s*propertyCtx\.IsStatic' -Description 'AsmResolver property construction null-safety block' -AlreadyPatchedPattern 'propertyCtx\.Getter\s*==\s*null\s*&&\s*propertyCtx\.Setter\s*==\s*null' -Replacement @'
         foreach (var propertyCtx in typeContext.Properties)
         {
             if (propertyCtx.Getter == null && propertyCtx.Setter == null)

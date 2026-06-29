@@ -58,6 +58,21 @@
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
       </Dialog>
 
+      <Dialog Id="DefenderDeclineConfirmDlg" Width="260" Height="120" Title="[ProductName] Setup">
+        <Control Id="Text" Type="Text" X="15" Y="20" Width="230" Height="45" Text="KingdomMod cannot install correctly without the required Windows Defender exclusion. Are you sure you want to stop setup?" />
+        <Control Id="Yes" Type="PushButton" X="72" Y="84" Width="56" Height="17" Default="yes" Text="Yes" />
+        <Control Id="No" Type="PushButton" X="132" Y="84" Width="56" Height="17" Cancel="yes" Text="No" />
+      </Dialog>
+
+      <Dialog Id="GameLaunchNoticeDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\\WixUI_Font_Title}Kingdom Two Crowns will briefly launch" />
+        <Control Id="Description" Type="Text" X="25" Y="34" Width="320" Height="115" Text="During installation, KingdomMod must briefly start Kingdom Two Crowns so MelonLoader can generate game references for this computer." />
+        <Control Id="Instructions" Type="Text" X="25" Y="150" Width="320" Height="55" Text="The installer will close the game automatically when this setup pass is finished. Do not close the game yourself while setup is running." />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)" />
+      </Dialog>
+
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
 
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
@@ -80,11 +95,18 @@
       <Publish Dialog="BrowseDlg" Control="OK" Event="EndDialog" Value="Return" Order="4" Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
 
       <Publish Dialog="DefenderExclusionDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" />
-      <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="DEFENDEREXCLUSIONACCEPTED=&quot;1&quot;" />
-      <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="EndDialog" Value="Exit" Condition="DEFENDEREXCLUSIONACCEPTED&lt;&gt;&quot;1&quot;" />
+      <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="NewDialog" Value="GameLaunchNoticeDlg" Condition="DEFENDEREXCLUSIONACCEPTED=&quot;1&quot;" />
+      <Publish Dialog="DefenderExclusionDlg" Control="Next" Event="SpawnDialog" Value="DefenderDeclineConfirmDlg" Condition="DEFENDEREXCLUSIONACCEPTED&lt;&gt;&quot;1&quot;" />
       <Publish Dialog="DefenderExclusionDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" />
 
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="DefenderExclusionDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="DefenderDeclineConfirmDlg" Control="Yes" Event="EndDialog" Value="Exit" />
+      <Publish Dialog="DefenderDeclineConfirmDlg" Control="No" Event="EndDialog" Value="Return" />
+
+      <Publish Dialog="GameLaunchNoticeDlg" Control="Back" Event="NewDialog" Value="DefenderExclusionDlg" />
+      <Publish Dialog="GameLaunchNoticeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="GameLaunchNoticeDlg" Control="Cancel" Event="SpawnDialog" Value="CancelDlg" />
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="GameLaunchNoticeDlg" Order="1" Condition="NOT Installed" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
 
