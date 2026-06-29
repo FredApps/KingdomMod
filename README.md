@@ -12,7 +12,7 @@ tree behavior, and sprite replacement.
 
 ## Install
 
-1. Download `KingdomMod-<version>-x64.msi` from the latest GitHub Release.
+1. Download [`KingdomMod-<version>-x64.msi`](https://github.com/FredApps/KingdomMod/releases) from the latest GitHub Release.
 2. Run the MSI.
 3. Confirm or browse to your Kingdom Two Crowns folder.
 4. Let the installer launch the game once if interop references must be
