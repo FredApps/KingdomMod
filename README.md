@@ -34,10 +34,10 @@ history, not just the contents of the installer.
 
 The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
 patched Cpp2IL from source on your machine, generates local references from
-your own game install, extracts a bundled .NET SDK for setup-time compilation,
-builds KingdomMod DLLs locally, and copies the loader, API, and bundled example
-mods into the game's `Mods` folder. If MelonLoader is already present,
-KingdomMod leaves that installation owned by you.
+your own game install, downloads a setup-time .NET SDK if needed, builds
+KingdomMod DLLs locally, and copies the loader, API, and bundled example mods
+into the game's `Mods` folder. If MelonLoader is already present, KingdomMod
+leaves that installation owned by you.
 
 The Defender exclusion is required because KingdomMod builds modified mod DLLs
 locally against your own Kingdom Two Crowns install. Those DLLs cannot be

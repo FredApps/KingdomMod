@@ -4,6 +4,8 @@ param(
 
     [string]$DefenderExclusionAccepted,
 
+    [string]$DotNetSdkVersion = '8.0.421',
+
     [int]$LaunchTimeoutSec = 900
 )
 
@@ -93,23 +95,27 @@ function Resolve-Dotnet {
     throw 'No .NET SDK found. The bundled SDK could not be used; rerun the MSI or check the KingdomMod installer log.'
 }
 
-function Install-BundledDotnetSdk {
-    param([Parameter(Mandatory=$true)][string]$SupportDir)
+function Install-SetupDotnetSdk {
+    param(
+        [Parameter(Mandatory=$true)][string]$SupportDir,
+        [Parameter(Mandatory=$true)][string]$DotNetSdkVersion
+    )
 
     $dotnetExe = Join-Path $SupportDir 'dotnet\dotnet.exe'
     if (Test-Path $dotnetExe) { return }
 
-    $sdkZip = Get-ChildItem -LiteralPath $SupportDir -File -Filter 'dotnet-sdk-*-win-x64.zip' -ErrorAction SilentlyContinue |
-        Sort-Object Name |
-        Select-Object -First 1
-    if (-not $sdkZip) {
-        throw "Bundled .NET SDK payload is missing from '$SupportDir'."
+    $assetName = "dotnet-sdk-$DotNetSdkVersion-win-x64.zip"
+    $sdkZip = Join-Path $SupportDir $assetName
+    if (-not (Test-Path $sdkZip)) {
+        $downloadUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$DotNetSdkVersion/$assetName"
+        Write-Host "Downloading setup-time .NET SDK: $assetName..."
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $sdkZip -Headers @{ 'User-Agent' = 'kingdommod-msi-installer' }
     }
 
-    Write-Host "Extracting bundled .NET SDK: $($sdkZip.Name)..."
+    Write-Host "Extracting setup-time .NET SDK: $assetName..."
     $target = Join-Path $SupportDir 'dotnet'
     New-Item -ItemType Directory -Force -Path $target | Out-Null
-    Expand-Archive -LiteralPath $sdkZip.FullName -DestinationPath $target -Force
+    Expand-Archive -LiteralPath $sdkZip -DestinationPath $target -Force
 }
 
 function Enable-BundledDotnetSdk {
@@ -301,7 +307,7 @@ if (-not (Test-Path $zip)) {
 if (-not (Test-Path (Join-Path $sourceRoot 'KingdomMod.sln'))) {
     throw "Missing bundled KingdomMod source payload: $sourceRoot"
 }
-Install-BundledDotnetSdk -SupportDir $support
+Install-SetupDotnetSdk -SupportDir $support -DotNetSdkVersion $DotNetSdkVersion
 Enable-BundledDotnetSdk -SupportDir $support
 
 $mlDir = Join-Path $game 'MelonLoader'

@@ -27,10 +27,9 @@ history, not just the contents of the installer.
 
 The MSI installs MelonLoader if needed, downloads and builds KingdomMod's
 patched Cpp2IL from source on your machine, generates local interop references
-from your own game install, extracts a bundled .NET SDK for setup-time
-compilation, builds KingdomMod DLLs locally, and copies those DLLs into
-`<KTC>\Mods`. If MelonLoader is already present, the installer leaves it owned
-by you.
+from your own game install, downloads a setup-time .NET SDK if needed, builds
+KingdomMod DLLs locally, and copies those DLLs into `<KTC>\Mods`. If
+MelonLoader is already present, the installer leaves it owned by you.
 
 The Defender exclusion is required because KingdomMod builds modified mod DLLs
 locally against your own Kingdom Two Crowns install. Those DLLs cannot be
@@ -240,9 +239,9 @@ powershell -ExecutionPolicy Bypass -File tools\build-msi.ps1 -Version 0.1.0
 
 GitHub Actions packages the source tree and installer support into an MSI on
 `v*` tags and manual workflow runs. The resulting MSI builds patched Cpp2IL and
-KingdomMod DLLs on the target machine with the SDK bundled in the MSI, after it
-generates `refs/` from that user's game install. GitHub never receives or
-builds against game-derived files.
+KingdomMod DLLs on the target machine with a setup-time SDK downloaded during
+install, after it generates `refs/` from that user's game install. GitHub never
+receives or builds against game-derived files.
 
 ## Safety Notes
 

@@ -5,7 +5,6 @@
 param(
     [string]$Version,
     [string]$MelonLoaderVersion = 'v0.7.3',
-    [string]$DotNetSdkVersion = '8.0.421',
     [string]$OutputDir
 )
 
@@ -43,12 +42,6 @@ $downloadUrl = "https://github.com/LavaGang/MelonLoader/releases/download/$Melon
 $zip = Join-Path $support $assetName
 Write-Host "Downloading $assetName ($MelonLoaderVersion)..."
 Invoke-WebRequest -Uri $downloadUrl -OutFile $zip -Headers $headers
-
-$dotnetSdkAssetName = "dotnet-sdk-$DotNetSdkVersion-win-x64.zip"
-$dotnetSdkUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$DotNetSdkVersion/$dotnetSdkAssetName"
-$dotnetSdkZip = Join-Path $support $dotnetSdkAssetName
-Write-Host "Downloading $dotnetSdkAssetName..."
-Invoke-WebRequest -Uri $dotnetSdkUrl -OutFile $dotnetSdkZip -Headers $headers
 
 Copy-Item -LiteralPath (Join-Path $installer 'scripts\BuildAndInstallKingdomMod.ps1') -Destination $support -Force
 Copy-Item -LiteralPath (Join-Path $installer 'scripts\UninstallMelonLoader.ps1') -Destination $support -Force
