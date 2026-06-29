@@ -31,6 +31,7 @@ namespace KingdomMod.Loader.Console
         private bool _showMounts;
         private GUIStyle _boldLabel;
         private GUIStyle _titleLabel;
+        private GUIStyle _cursorStyle;
         private readonly List<Steed> _mountOptions = new();
         private readonly List<string> _log = new()
         {
@@ -46,8 +47,8 @@ namespace KingdomMod.Loader.Console
 
         // Cursor state captured when the console opens, restored when it closes â€”
         // KTC keeps the system cursor hidden during gameplay so IMGUI has nothing
-        // to render. Forcing visible+unlocked while the panel is open gives the
-        // user a pointer to click with.
+        // to render. Drawing our own software pointer avoids a visible fight with
+        // the game repeatedly hiding the hardware cursor.
         private bool _savedCursorVisible;
         private CursorLockMode _savedCursorLock;
         private bool _cursorOverridden;
@@ -84,7 +85,7 @@ namespace KingdomMod.Loader.Console
             _savedCursorVisible = Cursor.visible;
             _savedCursorLock = Cursor.lockState;
             _cursorOverridden = true;
-            Cursor.visible = true;
+            Cursor.visible = false;
             Cursor.lockState = CursorLockMode.None;
         }
 
@@ -106,9 +107,9 @@ namespace KingdomMod.Loader.Console
         {
             if (!_visible) return;
             // Re-assert each frame â€” the game (or another mod) may set
-            // Cursor.visible/lockState every frame on its own. Capturing once
-            // on Toggle isn't enough; we have to hold the override while open.
-            Cursor.visible = true;
+            // Cursor.visible/lockState every frame on its own. Keep the hardware
+            // cursor hidden and draw a software pointer so it does not flicker.
+            Cursor.visible = false;
             Cursor.lockState = CursorLockMode.None;
 
             // Pin as a full-width bar flush with the bottom of the screen.
@@ -128,6 +129,7 @@ namespace KingdomMod.Loader.Console
 
             _window = GUILayout.Window(0xCAB1ED, _window, (GUI.WindowFunction)DrawWindow, "KingdomMod  (F1 to hide)");
             ReserveConsoleMouseRegion();
+            DrawSoftwareCursor();
         }
 
         private void DrawWindow(int id)
@@ -316,6 +318,19 @@ namespace KingdomMod.Loader.Console
         {
             _boldLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
             _titleLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
+            _cursorStyle ??= new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 22,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.white }
+            };
+        }
+
+        private void DrawSoftwareCursor()
+        {
+            if (Event.current == null) return;
+            var p = Event.current.mousePosition;
+            GUI.Label(new Rect(p.x + 1f, p.y + 1f, 24f, 24f), ">", _cursorStyle);
         }
 
         private void ReserveConsoleMouseRegion()
@@ -536,7 +551,6 @@ namespace KingdomMod.Loader.Console
 
         private void GiveCoinsToTarget(int amount)
         {
-            ResetCoinCheatBeforeGift();
             var p = FindPlayer(_giftTarget);
             if (p == null || p.wallet == null)
             {
@@ -549,7 +563,6 @@ namespace KingdomMod.Loader.Console
 
         private void GiveGemsToTarget(int amount)
         {
-            ResetCoinCheatBeforeGift();
             var p = FindPlayer(_giftTarget);
             if (p == null || p.wallet == null)
             {
@@ -558,21 +571,6 @@ namespace KingdomMod.Loader.Console
             }
             p.wallet.Gems = System.Math.Max(0, p.wallet.Gems + amount);
             Log($"Player {_giftTarget + 1}: +{amount} gems.");
-        }
-
-        private void ResetCoinCheatBeforeGift()
-        {
-            try
-            {
-                if (Kingdom.Economy.CoinCheat == CoinCheatMode.None) return;
-                Kingdom.Economy.CoinCheat = CoinCheatMode.None;
-                LoaderMod.Instance?.PersistCoinCheat(CoinCheatMode.None);
-                Log("Coins cheat: None.");
-            }
-            catch (System.Exception e)
-            {
-                Log($"Coin cheat reset failed: {e.Message}");
-            }
         }
 
         private void SpawnBeggarForTarget()
@@ -652,7 +650,7 @@ namespace KingdomMod.Loader.Console
 
             if (!_showMounts) return;
 
-            _mountScroll = GUILayout.BeginScrollView(_mountScroll, GUILayout.Height(96));
+            _mountScroll = GUILayout.BeginScrollView(_mountScroll, GUILayout.Height(138));
             if (_mountOptions.Count == 0)
             {
                 GUILayout.Label("(No mounts loaded yet - enter a run, then Refresh.)");
@@ -678,7 +676,7 @@ namespace KingdomMod.Loader.Console
                 GUILayout.FlexibleSpace();
                 return;
             }
-            if (GUILayout.Button($"{steed.steedType}   ({steed.name})", GUILayout.Height(22), GUILayout.Width((_window.width - 32f) * 0.5f)))
+            if (GUILayout.Button($"{steed.steedType}   ({steed.name})", GUILayout.Height(30), GUILayout.Width((_window.width - 32f) * 0.5f)))
                 RidePlayer(_mountTarget, steed);
         }
 
