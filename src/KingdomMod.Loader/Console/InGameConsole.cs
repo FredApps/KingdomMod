@@ -31,6 +31,8 @@ namespace KingdomMod.Loader.Console
         private bool _showMounts;
         private GUIStyle _boldLabel;
         private GUIStyle _titleLabel;
+        private GUIStyle _subLabel;
+        private GUIStyle _noteLabel;
         private readonly List<Steed> _mountOptions = new();
         private readonly List<string> _log = new()
         {
@@ -141,7 +143,11 @@ namespace KingdomMod.Loader.Console
         public void OnGUI()
         {
             if (!_visible) return;
-            MaintainCursorOverride();
+            // NB: don't re-assert the cursor here. OnGUI runs once per event
+            // (Layout, Repaint, and every mouse-move/drag/key event), so calling
+            // Cursor.SetCursor from here fired many times per frame and made the
+            // panel feel heavy while moving the mouse. OnUpdate maintains the
+            // override once per frame, which is enough.
 
             // Pin as a full-width bar flush with the bottom of the screen.
             // GUILayout.Window grows the window to fit its content, which can be
@@ -188,21 +194,23 @@ namespace KingdomMod.Loader.Console
             // double-swap the bag visual. Rendered as radio-style toggles.
             GUILayout.BeginVertical(GUILayout.Width(220));
             GUILayout.Label(new GUIContent("Cheats", "Built-in loader cheats. Each one persists across sessions."), _titleLabel);
-            GUILayout.Label(new GUIContent("  Coins:", "How coins behave: vanilla, tax-free, or unlimited."));
+            GUILayout.Label(new GUIContent("  <u>Coins:</u>", "How coins behave: vanilla, tax-free, or unlimited."), _subLabel);
             DrawCoinCheatRadio();
             GUILayout.Space(2);
-            GUILayout.Label(new GUIContent("  Infinite stamina:", "Whether sprinting drains stamina."));
+            GUILayout.Label(new GUIContent("  <u>Infinite stamina:</u>", "Whether sprinting drains stamina."), _subLabel);
             DrawInfiniteStaminaRadio();
+            GUILayout.Label(new GUIContent("  <u>Invincibility:</u>", "Friendly monarchs and units are invincible; enemies are unaffected."), _subLabel);
+            DrawInvincibilityRadio();
             GUILayout.EndVertical();
 
             GUILayout.Space(12);
 
             GUILayout.BeginVertical(GUILayout.Width(180));
             GUILayout.Label(new GUIContent("Fixes", "Small loader-side bug fixes. Each one persists across sessions."), _titleLabel);
-            GUILayout.Label(new GUIContent("  Crown pickup:", "Repairs stuck dropped crowns after 10s, or returns the crown if the dropped object disappears."));
+            GUILayout.Label(new GUIContent("  <u>Crown pickup:</u>", "Repairs stuck dropped crowns after 10s, or returns the crown if the dropped object disappears."), _subLabel);
             DrawCrownPickupFixRadio();
-            GUILayout.Label(new GUIContent("  Boar vanish:", "Repairs winter boars that disappear without dying; preserves coin rewards unless the boar returned to its nest."));
-            DrawBoarVanishFixRadio();
+            GUILayout.Label(new GUIContent("  <u>Boar vanish:</u>", "Winter boars that disappear without dying; the loader-side repair is disabled for now."), _subLabel);
+            GUILayout.Label(new GUIContent("  (off - still unsure how to fix)", "The boar-vanish repair is turned off until a reliable fix is found."), _noteLabel);
             GUILayout.EndVertical();
 
             GUILayout.Space(12);
@@ -241,19 +249,22 @@ namespace KingdomMod.Loader.Console
 
             // Column 3 â€” currency steppers (no text fields â€” KTC's Unity build
             // has stripped GUI.DoTextField).
-            GUILayout.BeginVertical();
+            GUILayout.BeginVertical(GUILayout.Width(420));
             GUILayout.BeginHorizontal();
-            GUILayout.Label(new GUIContent("Gifts", "Give coins, gems, or a beggar to the selected player."), _titleLabel, GUILayout.Width(52));
+            GUILayout.Label(new GUIContent("Gifts", "Give coins, gems, NPCs, or powers to the selected player."), _titleLabel, GUILayout.Width(52));
             GUILayout.Label(new GUIContent("Target:", "Which player receives gifts."), GUILayout.Width(48));
             if (GUILayout.Toggle(_giftTarget == 0, new GUIContent("P1", "Give gifts to Player 1."), "Button", GUILayout.Width(36))) _giftTarget = 0;
             if (GUILayout.Toggle(_giftTarget == 1, new GUIContent("P2", "Give gifts to Player 2."), "Button", GUILayout.Width(36))) _giftTarget = 1;
             GUILayout.EndHorizontal();
             DrawGiftSliderRow("Coins", ref _coinsAmount, 1, 200, GiveCoinsToTarget);
             DrawGiftSliderRow("Gems",  ref _gemsAmount,  1, 12,  GiveGemsToTarget);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Beggar:", GUILayout.Width(90));
-            if (GUILayout.Button(new GUIContent("Spawn", "Spawn a beggar beside the selected player."), GUILayout.Width(90))) SpawnBeggarForTarget();
-            GUILayout.EndHorizontal();
+            DrawNpcGiftRows();
+            GUILayout.EndVertical();
+
+            GUILayout.Space(12);
+
+            GUILayout.BeginVertical(GUILayout.Width(320));
+            DrawPowerRows();
             GUILayout.EndVertical();
 
             GUILayout.EndHorizontal();
@@ -340,6 +351,27 @@ namespace KingdomMod.Loader.Console
                 }
             }
             catch (System.Exception e) { Log($"Stamina reset failed â€” {e.Message}"); }
+            try
+            {
+                if (LoaderMod.Instance != null && LoaderMod.Instance.FriendlyInvincibilityEnabled)
+                {
+                    LoaderMod.Instance.PersistFriendlyInvincibility(false);
+                    n++;
+                }
+            }
+            catch (System.Exception e) { Log($"Invincibility reset failed â€” {e.Message}"); }
+            try
+            {
+                if (LoaderMod.Instance != null)
+                {
+                    LoaderMod.Instance.PersistItemPower(0, ItemOfPower.ItemType.None);
+                    LoaderMod.Instance.PersistItemPower(1, ItemOfPower.ItemType.None);
+                    LoaderMod.Instance.PersistMonarchChoice(0, 0);
+                    LoaderMod.Instance.PersistMonarchChoice(1, 0);
+                    n++;
+                }
+            }
+            catch (System.Exception e) { Log($"Powers reset failed â€” {e.Message}"); }
 
             Log($"Reset {n} control(s) to off.");
         }
@@ -348,6 +380,9 @@ namespace KingdomMod.Loader.Console
         {
             _boldLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
             _titleLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
+            // Underlined via rich-text <u>; richText must be on for the tag to render.
+            _subLabel ??= new GUIStyle(GUI.skin.label) { richText = true };
+            _noteLabel ??= new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Italic };
         }
 
         private void ReserveConsoleMouseRegion()
@@ -497,6 +532,29 @@ namespace KingdomMod.Loader.Console
             }
         }
 
+        private static void DrawInvincibilityRadio()
+        {
+            bool cur = LoaderMod.Instance != null && LoaderMod.Instance.FriendlyInvincibilityEnabled;
+            GUILayout.BeginHorizontal();
+            DrawInvincibilityOption("Off", false, cur);
+            DrawInvincibilityOption("On", true, cur);
+            GUILayout.EndHorizontal();
+        }
+
+        private static void DrawInvincibilityOption(string label, bool value, bool current)
+        {
+            bool isOn = current == value;
+            string tip = value
+                ? "On: all friendly monarchs and units are invincible; enemies remain vanilla."
+                : "Off: vanilla damage behavior.";
+            bool next = GUILayout.Toggle(isOn, new GUIContent(label, tip), "Button", GUILayout.Width(64));
+            if (next && !isOn)
+            {
+                LoaderMod.Instance?.PersistFriendlyInvincibility(value);
+                LoaderMod.Instance?.LogToConsole($"Invincibility: {(value ? "On" : "Off")}.");
+            }
+        }
+
         private static void DrawCrownPickupFixRadio()
         {
             bool cur = LoaderMod.Instance == null || LoaderMod.Instance.CrownPickupFixEnabled;
@@ -517,29 +575,6 @@ namespace KingdomMod.Loader.Console
             {
                 LoaderMod.Instance?.PersistCrownPickupFix(value);
                 LoaderMod.Instance?.LogToConsole($"Crown pickup fix: {(value ? "On" : "Off")}.");
-            }
-        }
-
-        private static void DrawBoarVanishFixRadio()
-        {
-            bool cur = LoaderMod.Instance == null || LoaderMod.Instance.BoarVanishFixEnabled;
-            GUILayout.BeginHorizontal();
-            DrawBoarVanishFixOption("Off", false, cur);
-            DrawBoarVanishFixOption("On",  true,  cur);
-            GUILayout.EndHorizontal();
-        }
-
-        private static void DrawBoarVanishFixOption(string label, bool value, bool current)
-        {
-            bool isOn = (current == value);
-            string tip = value
-                ? "If a winter boar vanishes away from its nest, runs the boar coin reward and blocks stale nest respawn."
-                : "Vanilla boar behavior.";
-            bool next = GUILayout.Toggle(isOn, new GUIContent(label, tip), "Button", GUILayout.Width(64));
-            if (next && !isOn)
-            {
-                LoaderMod.Instance?.PersistBoarVanishFix(value);
-                LoaderMod.Instance?.LogToConsole($"Boar vanish fix: {(value ? "On" : "Off")}.");
             }
         }
 
@@ -566,6 +601,148 @@ namespace KingdomMod.Loader.Console
             GUILayout.EndHorizontal();
         }
 
+        private void DrawNpcGiftRows()
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(new GUIContent("NPCs:", "Spawn friendly units beside the selected player."), GUILayout.Width(58));
+            DrawNpcButton("Beggar", "Spawn a beggar beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnBeggar));
+            DrawNpcButton("Peasant", "Spawn a peasant beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnPeasant));
+            DrawNpcButton("Builder", "Spawn a builder beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnBuilder));
+            DrawNpcButton("Archer", "Spawn an archer beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnArcher));
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("", GUILayout.Width(58));
+            DrawNpcButton("Squire", "Spawn a squire beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnSquire));
+            DrawNpcButton("Knight", "Spawn a knight beside the selected player with coin slots filled.", () => SpawnNpc(NpcGiftSpawner.SpawnKnight));
+            DrawNpcButton("Berserker", "Spawn a berserker beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnBerserker));
+            DrawNpcButton("Ghosts", "Spawn Hel's ghost party beside the selected player.", () => SpawnNpc(NpcGiftSpawner.SpawnGhostParty));
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(new GUIContent("Hermits:", "Spawn a hermit beside the selected player."), GUILayout.Width(58));
+            DrawHermitButton("Horse", Hermit.HermitType.Horse);
+            DrawHermitButton("Horn", Hermit.HermitType.Horn);
+            DrawHermitButton("Ballista", Hermit.HermitType.Ballista);
+            DrawHermitButton("Baker", Hermit.HermitType.Baker);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("", GUILayout.Width(58));
+            DrawHermitButton("Knight", Hermit.HermitType.Knight);
+            DrawHermitButton("Fire", Hermit.HermitType.Fire);
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawNpcButton(string label, string tip, System.Action action)
+        {
+            if (GUILayout.Button(new GUIContent(label, tip), GUILayout.Width(80))) action();
+        }
+
+        private void DrawHermitButton(string label, Hermit.HermitType type)
+        {
+            if (GUILayout.Button(new GUIContent(label, $"Spawn the {label} hermit beside the selected player."), GUILayout.Width(80)))
+            {
+                SpawnNpc((p, playerNumber, log) => NpcGiftSpawner.SpawnHermit(p, playerNumber, type, log));
+            }
+        }
+
+        private void SpawnNpc(System.Action<Player, int, System.Action<string>> spawn)
+        {
+            var p = FindPlayer(_giftTarget);
+            if (p == null)
+            {
+                Log($"Player {_giftTarget + 1} not in scene.");
+                return;
+            }
+
+            try { spawn(p, _giftTarget + 1, Log); }
+            catch (System.Exception e) { Log($"NPC spawn failed: {e.GetType().Name}: {e.Message}"); }
+        }
+
+        private void DrawPowerRows()
+        {
+            GUILayout.Label(new GUIContent("Powers", "Persisted item-of-power and monarch powers for the selected player."), _titleLabel);
+            // Thor/Hel/Heimdal/Loki are Norse Lands items of power; they only load
+            // while playing the Norse Lands campaign, so hide the row elsewhere.
+            if (IsNorselandsBiome())
+                DrawItemPowerRow();
+            // Dead Lands monarchs only load while playing the Dead Lands campaign;
+            // hide the row in any other campaign.
+            if (IsDeadlandsBiome())
+                DrawMonarchPowerRow();
+        }
+
+        private static bool IsDeadlandsBiome() => SafeBiomeIndex() == BiomeHolder.DeadlandsBiomeIndex;
+
+        private static bool IsNorselandsBiome() => SafeBiomeIndex() == BiomeHolder.NorselandsBiomeIndex;
+
+        private static int SafeBiomeIndex()
+        {
+            try
+            {
+                var inst = BiomeHolder.Inst;
+                return inst != null ? inst.BiomeIndex : -1;
+            }
+            catch { return -1; }
+        }
+
+        private void DrawItemPowerRow()
+        {
+            var loader = LoaderMod.Instance;
+            var player = FindPlayer(_giftTarget);
+            var cur = loader != null && loader.HasPersistedItemPower(_giftTarget)
+                ? loader.GetPersistedItemPower(_giftTarget)
+                : (player != null ? player.equippedItemOfPower : ItemOfPower.ItemType.None);
+            GUILayout.BeginHorizontal();
+            DrawItemPowerOption("None", ItemOfPower.ItemType.None, cur);
+            DrawItemPowerOption("Thor", ItemOfPower.ItemType.ThorItem, cur);
+            DrawItemPowerOption("Hel", ItemOfPower.ItemType.HelItem, cur);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            DrawItemPowerOption("Heimdal", ItemOfPower.ItemType.HeimdalItem, cur);
+            DrawItemPowerOption("Loki", ItemOfPower.ItemType.LokiItem, cur);
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawItemPowerOption(string label, ItemOfPower.ItemType item, ItemOfPower.ItemType current)
+        {
+            bool isOn = current == item;
+            bool next = GUILayout.Toggle(isOn, new GUIContent(label, $"Set Player {_giftTarget + 1} item of power to {label}."), "Button", GUILayout.Width(92));
+            if (next && !isOn)
+            {
+                LoaderMod.Instance?.PersistItemPower(_giftTarget, item);
+                PowerSwitcher.ApplyItemPower(FindPlayer(_giftTarget), _giftTarget + 1, item, Log);
+            }
+        }
+
+        private void DrawMonarchPowerRow()
+        {
+            var loader = LoaderMod.Instance;
+            int cur = loader != null ? loader.GetPersistedMonarchChoice(_giftTarget) : 0;
+            GUILayout.Label(new GUIContent("  <u>Monarch:</u>", "Switch the selected player between the captured original monarch and Dead Lands monarch powers."), _subLabel);
+            GUILayout.BeginHorizontal();
+            DrawMonarchPowerOption("Original", 0, cur);
+            DrawMonarchPowerOption("Zangetsu", 1, cur);
+            DrawMonarchPowerOption("Alfred", 2, cur);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            DrawMonarchPowerOption("Gebel", 3, cur);
+            DrawMonarchPowerOption("Miriam", 4, cur);
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawMonarchPowerOption(string label, int choice, int current)
+        {
+            bool isOn = current == choice;
+            bool next = GUILayout.Toggle(isOn, new GUIContent(label, $"Set Player {_giftTarget + 1} monarch to {label}."), "Button", GUILayout.Width(92));
+            if (next && !isOn)
+            {
+                LoaderMod.Instance?.PersistMonarchChoice(_giftTarget, choice);
+                PowerSwitcher.ApplyMonarch(FindPlayer(_giftTarget), _giftTarget + 1, choice, Log);
+            }
+        }
+
         private void GiveCoinsToTarget(int amount)
         {
             var p = FindPlayer(_giftTarget);
@@ -588,48 +765,6 @@ namespace KingdomMod.Loader.Console
             }
             p.wallet.Gems = System.Math.Max(0, p.wallet.Gems + amount);
             Log($"Player {_giftTarget + 1}: +{amount} gems.");
-        }
-
-        private void SpawnBeggarForTarget()
-        {
-            var p = FindPlayer(_giftTarget);
-            if (p == null)
-            {
-                Log($"Player {_giftTarget + 1} not in scene.");
-                return;
-            }
-
-            Beggar source = null;
-            foreach (var b in Resources.FindObjectsOfTypeAll<Beggar>())
-            {
-                if (b == null) continue;
-                if (b.gameObject != null && b.gameObject.scene.handle == 0) { source = b; break; }
-                if (source == null) source = b;
-            }
-            if (source == null)
-            {
-                Log("No Beggar prefab/instance is loaded yet.");
-                return;
-            }
-
-            try
-            {
-                var pos = p.transform.position + new Vector3(1.25f, 0f, 0f);
-                var beggar = Object.Instantiate(source, pos, Quaternion.identity);
-                if (beggar == null)
-                {
-                    Log("Beggar spawn failed.");
-                    return;
-                }
-                beggar.name = "Gifted Beggar";
-                beggar.gameObject.SetActive(true);
-                try { KingdomMod.Internal.GameRefs.Kingdom?.AddBeggar(beggar); } catch { }
-                Log($"Spawned beggar beside Player {_giftTarget + 1}.");
-            }
-            catch (System.Exception e)
-            {
-                Log($"Beggar spawn failed: {e.GetType().Name}: {e.Message}");
-            }
         }
 
         private static Player FindPlayer(int playerId)

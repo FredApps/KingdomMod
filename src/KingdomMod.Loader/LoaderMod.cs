@@ -4,6 +4,7 @@
 
 using System;
 using System.IO;
+using Il2Cpp;
 using KingdomMod.Loader.Console;
 using MelonLoader;
 using MelonLoader.Utils;
@@ -36,8 +37,15 @@ namespace KingdomMod.Loader
         private MelonPreferences_Entry<string> _lastBackupDir;
         private MelonPreferences_Entry<int>  _defaultCoinCheat;
         private MelonPreferences_Entry<bool> _defaultInfStamina;
+        private MelonPreferences_Entry<bool> _friendlyInvincibility;
         private MelonPreferences_Entry<bool> _crownPickupFix;
         private MelonPreferences_Entry<bool> _boarVanishFix;
+        private MelonPreferences_Entry<int> _itemPowerP1;
+        private MelonPreferences_Entry<int> _itemPowerP2;
+        private MelonPreferences_Entry<int> _monarchChoiceP1;
+        private MelonPreferences_Entry<int> _monarchChoiceP2;
+        private MelonPreferences_Entry<int> _originalMonarchP1;
+        private MelonPreferences_Entry<int> _originalMonarchP2;
 
         public override void OnInitializeMelon()
         {
@@ -55,10 +63,24 @@ namespace KingdomMod.Loader
                 "Coin cheat. 0=None, 1=NoTax, 2=Infinite. Applied on launch and updated when you change it via F1, so the last-used state persists.");
             _defaultInfStamina = _prefs.CreateEntry("DefaultInfiniteStamina", false,
                 "Infinite Stamina. Applied on launch and updated when you toggle it via F1, so the last-used state persists.");
+            _friendlyInvincibility = _prefs.CreateEntry("FriendlyInvincibility", false,
+                "Friendly Invincibility. Makes monarchs and friendly units invulnerable while enabled.");
             _crownPickupFix = _prefs.CreateEntry("CrownPickupFix", true,
                 "Fixes dropped crowns that can get stuck/unpickable. Waits 10s, then only repairs if a crownless player is close.");
             _boarVanishFix = _prefs.CreateEntry("BoarVanishFix", true,
                 "Fixes winter boars that disappear without dying. Preserves reward coins unless the boar returned to its nest.");
+            _itemPowerP1 = _prefs.CreateEntry("ItemOfPowerP1", -1,
+                "Persisted F1 item of power for Player 1. -1=not managed yet, 0=None, 1=Thor, 2=Hel, 3=Heimdal, 4=Loki.");
+            _itemPowerP2 = _prefs.CreateEntry("ItemOfPowerP2", -1,
+                "Persisted F1 item of power for Player 2. -1=not managed yet, 0=None, 1=Thor, 2=Hel, 3=Heimdal, 4=Loki.");
+            _monarchChoiceP1 = _prefs.CreateEntry("MonarchChoiceP1", 0,
+                "Persisted F1 monarch choice for Player 1. 0=Original, 1=Zangetsu, 2=Alfred, 3=Gebel, 4=Miriam.");
+            _monarchChoiceP2 = _prefs.CreateEntry("MonarchChoiceP2", 0,
+                "Persisted F1 monarch choice for Player 2. 0=Original, 1=Zangetsu, 2=Alfred, 3=Gebel, 4=Miriam.");
+            _originalMonarchP1 = _prefs.CreateEntry("OriginalMonarchP1", -1,
+                "Captured original non-Dead-Lands monarch model for Player 1.");
+            _originalMonarchP2 = _prefs.CreateEntry("OriginalMonarchP2", -1,
+                "Captured original non-Dead-Lands monarch model for Player 2.");
 
             // The console owns F1; register it so it heads the Shortcuts guide.
             Kingdom.Mods.RegisterHotkey("F1", "Toggle this KingdomMod console");
@@ -119,8 +141,19 @@ namespace KingdomMod.Loader
             MelonPreferences.Save();
         }
 
+        internal bool FriendlyInvincibilityEnabled => _friendlyInvincibility != null && _friendlyInvincibility.Value;
         internal bool CrownPickupFixEnabled => _crownPickupFix == null || _crownPickupFix.Value;
-        internal bool BoarVanishFixEnabled => _boarVanishFix == null || _boarVanishFix.Value;
+        // Disabled for now: the boar-vanish repair isn't reliable yet. Forced off
+        // regardless of the persisted pref until a proper fix lands; the F1 row
+        // shows it as off. The pref + PersistBoarVanishFix are kept for when it does.
+        internal bool BoarVanishFixEnabled => false;
+
+        internal void PersistFriendlyInvincibility(bool on)
+        {
+            if (_friendlyInvincibility == null || _friendlyInvincibility.Value == on) return;
+            _friendlyInvincibility.Value = on;
+            MelonPreferences.Save();
+        }
 
         internal void PersistCrownPickupFix(bool on)
         {
@@ -133,6 +166,56 @@ namespace KingdomMod.Loader
         {
             if (_boarVanishFix == null || _boarVanishFix.Value == on) return;
             _boarVanishFix.Value = on;
+            MelonPreferences.Save();
+        }
+
+        internal ItemOfPower.ItemType GetPersistedItemPower(int playerId)
+        {
+            var entry = playerId == 1 ? _itemPowerP2 : _itemPowerP1;
+            return entry == null ? ItemOfPower.ItemType.None : (ItemOfPower.ItemType)entry.Value;
+        }
+
+        internal bool HasPersistedItemPower(int playerId)
+        {
+            var entry = playerId == 1 ? _itemPowerP2 : _itemPowerP1;
+            return entry != null && entry.Value >= 0;
+        }
+
+        internal void PersistItemPower(int playerId, ItemOfPower.ItemType item)
+        {
+            var entry = playerId == 1 ? _itemPowerP2 : _itemPowerP1;
+            if (entry == null || entry.Value == (int)item) return;
+            entry.Value = (int)item;
+            MelonPreferences.Save();
+        }
+
+        internal int GetPersistedMonarchChoice(int playerId)
+        {
+            var entry = playerId == 1 ? _monarchChoiceP2 : _monarchChoiceP1;
+            return entry?.Value ?? 0;
+        }
+
+        internal void PersistMonarchChoice(int playerId, int choice)
+        {
+            var entry = playerId == 1 ? _monarchChoiceP2 : _monarchChoiceP1;
+            if (entry == null || entry.Value == choice) return;
+            entry.Value = choice;
+            MelonPreferences.Save();
+        }
+
+        internal MonarchType? GetOriginalMonarch(int playerId)
+        {
+            var entry = playerId == 1 ? _originalMonarchP2 : _originalMonarchP1;
+            if (entry == null || entry.Value < 0) return null;
+            return (MonarchType)entry.Value;
+        }
+
+        internal void RememberOriginalMonarch(int playerId, MonarchType model)
+        {
+            if (KingdomMod.Loader.Console.PowerSwitcher.IsDeadlands(model)) return;
+            var entry = playerId == 1 ? _originalMonarchP2 : _originalMonarchP1;
+            if (entry == null || entry.Value >= 0) return;
+            entry.Value = (int)model;
             MelonPreferences.Save();
         }
 
@@ -234,10 +317,12 @@ namespace KingdomMod.Loader
 
         public override void OnUpdate()
         {
-            if (_consoleEnabled.Value && Input.GetKeyDown(KeyCode.F1)) _console?.Toggle();
+            if (_consoleEnabled.Value && UnityEngine.Input.GetKeyDown(KeyCode.F1)) _console?.Toggle();
             bool popupVisible = IsModalPopupVisible();
             if (_consoleEnabled.Value) _console?.OnUpdate(!popupVisible);
             KingdomMod.Loader.Patches.BoarVanishFixPatch.Tick();
+            KingdomMod.Loader.Patches.FriendlyInvincibility.Tick();
+            KingdomMod.Loader.Console.PowerSwitcher.ApplyPersistedPowers();
 
             // Hide the coin pouch while any coin cheat is active so the
             // visual matches the cheat — the CoinCounterOverlay draws the
