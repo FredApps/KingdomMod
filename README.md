@@ -139,5 +139,12 @@ runtime behavior such as the AnyMount `Perverted deers` toggle.
 
 ## License
 
-KingdomMod source is MIT licensed. Kingdom Two Crowns is property of noio /
-Raw Fury and is not covered by that license.
+KingdomMod source (the SDK, loader, tooling, example mods, and documentation
+in this repository) is [MIT licensed](LICENSE).
+
+That license covers only this source code. It does **not** grant any rights to
+Kingdom Two Crowns, its code, or its assets, which are the property of their
+respective owners (noio / Raw Fury). KingdomMod ships no game code or game
+assets. To use this platform you must own a legitimate copy of Kingdom Two
+Crowns; the IL2CPP interop assemblies that mods compile against are generated
+from YOUR OWN installation and are never redistributed.
