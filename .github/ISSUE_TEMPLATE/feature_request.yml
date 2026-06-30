@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a new mod, F1 console feature, or SDK capability.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What do you want to be able to do?
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why isn't the current setup enough?
+      description: What's missing, or what does this make easier?
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Other notes
+      description: Links, mockups, or similar mods/features for reference.
+    validations:
+      required: false

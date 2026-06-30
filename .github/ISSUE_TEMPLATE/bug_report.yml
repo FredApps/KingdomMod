@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in KingdomMod (loader, console, or a bundled mod) isn't working right.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you see instead?
+    validations:
+      required: true
+  - type: input
+    id: kingdommod-version
+    attributes:
+      label: KingdomMod version
+      description: Shown in the installer, or the MSI filename you installed (e.g. 0.3.1).
+    validations:
+      required: true
+  - type: input
+    id: game-version
+    attributes:
+      label: Kingdom Two Crowns version / platform
+      description: Steam, GOG, Epic, etc., and the build if known.
+    validations:
+      required: false
+  - type: textarea
+    id: mods
+    attributes:
+      label: Active mods
+      description: Which mods were loaded (bundled examples and/or your own)?
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: >
+        Paste the relevant excerpt from MelonLoader's `Latest.log`, and/or
+        `UserData/KingdomMod/logs/runtime-latest.jsonl` if extended logging was on.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: false
