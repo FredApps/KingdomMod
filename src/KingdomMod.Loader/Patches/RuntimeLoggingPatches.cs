@@ -98,8 +98,10 @@ namespace KingdomMod.Loader.Patches
         {
             try
             {
-                var field = AccessTools.Field(typeof(StateMachine), "_owner");
-                var owner = field?.GetValue(sm) as Component;
+                // Il2CppInterop exposes IL2CPP instance fields as properties, not
+                // reflectable .NET fields, so AccessTools.Field can't find _owner;
+                // read the generated property directly instead.
+                var owner = sm._owner;
                 if (owner == null) return false;
                 var go = owner.gameObject;
                 return go.GetComponentInParent<Player>() != null
@@ -117,7 +119,7 @@ namespace KingdomMod.Loader.Patches
 
         public static UnityEngine.Object StateMachineOwner(StateMachine sm)
         {
-            try { return AccessTools.Field(typeof(StateMachine), "_owner")?.GetValue(sm) as UnityEngine.Object; }
+            try { return sm._owner; }
             catch { return null; }
         }
 
@@ -335,12 +337,9 @@ namespace KingdomMod.Loader.Patches
             => RuntimeLog.Event(RuntimeLogLevel.BugFocused, "droppable", "on_disable", __instance, before: RuntimeLog.DroppableState(__instance));
     }
 
-    [HarmonyPatch(typeof(Droppable), "OnDestroy")]
-    internal static class RuntimeLogDroppableDestroyPatch
-    {
-        private static void Prefix(Droppable __instance)
-            => RuntimeLog.Event(RuntimeLogLevel.BugFocused, "droppable", "on_destroy", __instance, before: RuntimeLog.DroppableState(__instance));
-    }
+    // No RuntimeLogDroppableDestroyPatch: Droppable never declares OnDestroy, so
+    // patching it only yields "method missing" warnings. OnDisable (above) already
+    // fires on the same teardown path, so the destroy hook is redundant anyway.
 
     [HarmonyPatch(typeof(DroppableCurrency), "OnEnable")]
     internal static class RuntimeLogDroppableCurrencyEnablePatch

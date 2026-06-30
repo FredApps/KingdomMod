@@ -215,14 +215,6 @@ namespace KingdomMod.Loader.Console
 
             GUILayout.Space(12);
 
-            GUILayout.BeginVertical(GUILayout.Width(220));
-            GUILayout.Label(new GUIContent("Logging", "Current-session runtime diagnostics. Writes to UserData/KingdomMod/logs/runtime-latest.jsonl."), _titleLabel);
-            GUILayout.Label(new GUIContent("  <u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel);
-            DrawRuntimeLoggingRadio();
-            GUILayout.EndVertical();
-
-            GUILayout.Space(12);
-
             // Column 1b â€” mod-published toggles + choices (Kingdom.Mods registry).
             // Each mod owns its own state; we just render get/set.
             GUILayout.BeginVertical(GUILayout.Width(240));
@@ -249,7 +241,14 @@ namespace KingdomMod.Loader.Console
                         try { t.Set(next); } catch (System.Exception e) { Log($"{t.Label}: set failed â€” {e.Message}"); }
                     }
                 }
-                for (int i = 0; i < choices.Count; i++) DrawModChoice(choices[i]);
+                // Render "Perverted deers" last, regardless of mod load order.
+                int deferred = -1;
+                for (int i = 0; i < choices.Count; i++)
+                {
+                    if (choices[i].Label == "Perverted deers") { deferred = i; continue; }
+                    DrawModChoice(choices[i]);
+                }
+                if (deferred >= 0) DrawModChoice(choices[deferred]);
             }
             GUILayout.EndVertical();
 
@@ -294,9 +293,15 @@ namespace KingdomMod.Loader.Console
 
                 GUILayout.Space(12);
 
-                // Right: Log.
+                // Right: Log. The extended runtime-logging level lives inline with
+                // the Log title (no separate section).
                 GUILayout.BeginVertical();
-                GUILayout.Label("Log", _titleLabel);
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Log", _titleLabel, GUILayout.Width(40));
+                GUILayout.Label(new GUIContent("<u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel, GUILayout.Width(70));
+                DrawRuntimeLoggingRadio();
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
                 _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(96));
                 for (int i = _log.Count - 1; i >= 0; i--) GUILayout.Label(_log[i]);
                 GUILayout.EndScrollView();
