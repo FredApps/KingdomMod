@@ -59,6 +59,7 @@ namespace KingdomMod.Examples.AnyTrees
         //   * ChopAnyTrees   — mark any tree for chopping (PayableTree patches).
         //   * GuerillaWarfare — build towers between forest trees (PayableUpgrade patches).
         private static MelonPreferences_Entry<bool> _chopAnyTrees;
+        private static MelonPreferences_Entry<bool> _builderSpeedFast;
         private static MelonPreferences_Entry<bool> _guerillaWarfare;
 
         // ---- Region-flag bookkeeping ---------------------------------------
@@ -84,6 +85,19 @@ namespace KingdomMod.Examples.AnyTrees
                 if (_chopAnyTrees == null) return;
                 if (_chopAnyTrees.Value == value) return;
                 _chopAnyTrees.Value = value;
+                MelonPreferences.Save();
+            }
+        }
+
+        /// <summary>When true, construction components complete as soon as a builder adds work.</summary>
+        public static bool BuilderSpeedFast
+        {
+            get => _builderSpeedFast?.Value ?? false;
+            set
+            {
+                if (_builderSpeedFast == null) return;
+                if (_builderSpeedFast.Value == value) return;
+                _builderSpeedFast.Value = value;
                 MelonPreferences.Save();
             }
         }
@@ -154,6 +168,8 @@ namespace KingdomMod.Examples.AnyTrees
             // F1 menu state is remembered across sessions.
             _chopAnyTrees = cat.CreateEntry("ChopAnyTrees", false,
                 "When true, every tree is selectable for chopping (including forest-edge trees).");
+            _builderSpeedFast = cat.CreateEntry("BuilderSpeedFast", false,
+                "When true, construction completes when a builder starts working on it.");
             _guerillaWarfare = cat.CreateEntry("GuerillaWarfare", false,
                 "When true, towers can be built between trees inside the forest.");
 
@@ -169,6 +185,11 @@ namespace KingdomMod.Examples.AnyTrees
                 () => ChopAnyTrees ? 1 : 0,
                 idx => ChopAnyTrees = (idx == 1),
                 "Lame = vanilla (only cleared trees can be marked). Brave = mark ANY tree for chopping, including forest-edge and deep-forest trees. Workers still only chop trees you've paid to mark.");
+            Kingdom.Mods.RegisterChoice("Builder speed",
+                new[] { "Slow", "Fast" },
+                () => BuilderSpeedFast ? 1 : 0,
+                idx => BuilderSpeedFast = (idx == 1),
+                "Slow = vanilla construction speed. Fast = finish buildings as soon as a builder starts working on the construction.");
             Kingdom.Mods.RegisterChoice("Guerilla Warfare",
                 new[] { "Off", "On" },
                 () => GuerillaWarfare ? 1 : 0,
@@ -178,7 +199,7 @@ namespace KingdomMod.Examples.AnyTrees
             // Apply the persisted GuerillaWarfare state to any upgrades already in the scene.
             ReapplyAllRegionFlags();
 
-            LoggerInstance.Msg($"AnyTrees ready (ChopAnyTrees={ChopAnyTrees}, GuerillaWarfare={GuerillaWarfare}). " +
+            LoggerInstance.Msg($"AnyTrees ready (ChopAnyTrees={ChopAnyTrees}, BuilderSpeedFast={BuilderSpeedFast}, GuerillaWarfare={GuerillaWarfare}). " +
                                "Toggle in F1 → Mods. Workers still only chop trees the monarch has paid to mark.");
         }
     }
@@ -282,6 +303,74 @@ namespace KingdomMod.Examples.AnyTrees
                 _loggedHit = true;
                 MelonLoader.MelonLogger.Msg("[AnyTrees] CanPay patch firing (first hit).");
             }
+        }
+    }
+
+    /// <summary>
+    /// ConstructionBuildingComponent.IncrementBuild is the game path where a
+    /// builder has actually added work. Fast mode waits for that first real
+    /// work tick, then uses the component's own ForceComplete path so payment
+    /// and builder arrival remain vanilla.
+    /// </summary>
+    [HarmonyPatch(typeof(ConstructionBuildingComponent), nameof(ConstructionBuildingComponent.IncrementBuild))]
+    internal static class ConstructionBuildingComponentIncrementBuildPatch
+    {
+        private static readonly HashSet<IntPtr> _completedThisLifetime = new();
+
+        private static void Postfix(ConstructionBuildingComponent __instance, int addPoints)
+        {
+            if (!AnyTreesMod.BuilderSpeedFast) return;
+            if (__instance == null) return;
+            if (addPoints <= 0) return;
+
+            var pointer = __instance.Pointer;
+            if (pointer == IntPtr.Zero) return;
+            if (_completedThisLifetime.Contains(pointer)) return;
+
+            try
+            {
+                if (__instance.ShouldCancelBuild) return;
+                if (!__instance.NeedsMoreWork) return;
+
+                _completedThisLifetime.Add(pointer);
+                var name = SafeName(__instance);
+                __instance.ForceComplete();
+                MelonLogger.Msg($"[AnyTrees] Builder speed fast-completed construction: {name}.");
+            }
+            catch (Exception ex)
+            {
+                _completedThisLifetime.Add(pointer);
+                MelonLogger.Warning($"[AnyTrees] Builder speed failed to complete construction: {ex.Message}");
+            }
+        }
+
+        internal static void Forget(ConstructionBuildingComponent instance)
+        {
+            if (instance == null) return;
+            var pointer = instance.Pointer;
+            if (pointer == IntPtr.Zero) return;
+            _completedThisLifetime.Remove(pointer);
+        }
+
+        private static string SafeName(ConstructionBuildingComponent instance)
+        {
+            try
+            {
+                return instance.name ?? "(unnamed)";
+            }
+            catch
+            {
+                return "(unknown)";
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(ConstructionBuildingComponent), "OnDestroy")]
+    internal static class ConstructionBuildingComponentOnDestroyPatch
+    {
+        private static void Prefix(ConstructionBuildingComponent __instance)
+        {
+            ConstructionBuildingComponentIncrementBuildPatch.Forget(__instance);
         }
     }
 
