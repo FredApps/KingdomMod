@@ -104,6 +104,10 @@ The short rule: name your replacement PNG after the in-game sprite name, keep
 the original dimensions and transparent padding when possible, and ship only
 your own artwork.
 
+For complete custom mounts, read [Mount modding guide](mount-modding.md). It
+covers choosing a base `Steed`, changing mount fields, replacing mount sprites
+and animation frames, and swapping through the game's own `Player.Ride` path.
+
 ## Developer Setup
 
 Normal install and developer setup now share the same underlying build model:
@@ -232,6 +236,9 @@ console controls, Harmony patches, pack APIs, and SDK member tables.
   rerun developer setup.
 - **A mod's F-key does nothing:** open F1 and check Shortcuts. If the mod is not
   listed, its DLL did not load; check `MelonLoader/Latest.log`.
+- **Need live bug evidence:** enable F1 -> Logging -> Bug/Event/Raw. The latest
+  session is written to `UserData/KingdomMod/logs/runtime-latest.jsonl` and is
+  overwritten on the next game start.
 
 ## After A Game Update
 

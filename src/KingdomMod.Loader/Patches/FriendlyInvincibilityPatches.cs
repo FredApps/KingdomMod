@@ -44,7 +44,11 @@ namespace KingdomMod.Loader.Patches
                 var pointer = damageable.Pointer;
                 if (pointer == IntPtr.Zero) continue;
                 if (!OriginalStates.ContainsKey(pointer))
+                {
                     OriginalStates[pointer] = damageable.invulnerable;
+                    RuntimeInteractionLogger.Event(RuntimeLogLevel.BugFocused, "invincibility", "protect", damageable,
+                        data: RuntimeInteractionLogger.Fields(("original", damageable.invulnerable)));
+                }
                 if (!damageable.invulnerable)
                     damageable.invulnerable = true;
             }
@@ -62,6 +66,8 @@ namespace KingdomMod.Loader.Patches
                 if (damageable != null)
                 {
                     try { damageable.invulnerable = original; } catch { }
+                    RuntimeInteractionLogger.Event(RuntimeLogLevel.BugFocused, "invincibility", "restore", damageable,
+                        data: RuntimeInteractionLogger.Fields(("restored", original)));
                 }
                 OriginalStates.Remove(pointer);
             }

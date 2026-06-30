@@ -32,6 +32,7 @@ namespace KingdomMod.Loader
         private MelonPreferences_Entry<bool> _backupOnLaunch;
         private MelonPreferences_Entry<bool> _archiveLogs;
         private MelonPreferences_Entry<int>  _archiveLogKeep;
+        private MelonPreferences_Entry<int> _runtimeLogging;
         private MelonPreferences_Entry<bool> _warnedMultiplayer;
         private MelonPreferences_Entry<string> _lastBackupSig;
         private MelonPreferences_Entry<string> _lastBackupDir;
@@ -56,6 +57,7 @@ namespace KingdomMod.Loader
             _backupOnLaunch    = _prefs.CreateEntry("BackupSavesOnLaunch", true, "Copy save files to <repo>/build/save-backups/ before any modded session.");
             _archiveLogs       = _prefs.CreateEntry("ArchiveMelonLoaderLogs", true, "On each launch, copy MelonLoader\\Latest*.log into UserData\\KingdomMod\\logs\\ for later analysis.");
             _archiveLogKeep    = _prefs.CreateEntry("ArchiveMelonLoaderLogKeep", 30, "Maximum number of archived log files to keep. Oldest are deleted first.");
+            _runtimeLogging    = _prefs.CreateEntry("ExtendedRuntimeLogging", (int)RuntimeLogLevel.None, "Extended runtime logging. 0=None, 1=Bug-focused, 2=Event-heavy, 3=Maximum raw.");
             _warnedMultiplayer = _prefs.CreateEntry("ShownMultiplayerWarning", false, "Has the user dismissed the multiplayer warning?");
             _lastBackupSig     = _prefs.CreateEntry("LastBackupSignature", "", "Newest mod-DLL timestamp at the last save backup. Saves are only re-backed-up when this changes (i.e. after a mod (re)install), not every launch.");
             _lastBackupDir     = _prefs.CreateEntry("LastBackupDir", "", "Folder the most recent save backup was written to (shown in the first-run notice).");
@@ -85,6 +87,7 @@ namespace KingdomMod.Loader
             // The console owns F1; register it so it heads the Shortcuts guide.
             Kingdom.Mods.RegisterHotkey("F1", "Toggle this KingdomMod console");
 
+            RuntimeInteractionLogger.Initialize();
             if (_archiveLogs.Value) TryArchiveMelonLoaderLogs();
 
             // Apply the persisted cheat state on startup. The F1 toggles write
@@ -143,6 +146,7 @@ namespace KingdomMod.Loader
 
         internal bool FriendlyInvincibilityEnabled => _friendlyInvincibility != null && _friendlyInvincibility.Value;
         internal bool CrownPickupFixEnabled => _crownPickupFix == null || _crownPickupFix.Value;
+        internal RuntimeLogLevel ExtendedRuntimeLogging => _runtimeLogging == null ? RuntimeLogLevel.None : (RuntimeLogLevel)_runtimeLogging.Value;
         // Disabled for now: the boar-vanish repair isn't reliable yet. Forced off
         // regardless of the persisted pref until a proper fix lands; the F1 row
         // shows it as off. The pref + PersistBoarVanishFix are kept for when it does.
@@ -160,6 +164,14 @@ namespace KingdomMod.Loader
             if (_crownPickupFix == null || _crownPickupFix.Value == on) return;
             _crownPickupFix.Value = on;
             MelonPreferences.Save();
+        }
+
+        internal void PersistRuntimeLogging(RuntimeLogLevel level)
+        {
+            if (_runtimeLogging == null || _runtimeLogging.Value == (int)level) return;
+            _runtimeLogging.Value = (int)level;
+            MelonPreferences.Save();
+            RuntimeInteractionLogger.ModeChanged(level);
         }
 
         internal void PersistBoarVanishFix(bool on)
@@ -227,6 +239,8 @@ namespace KingdomMod.Loader
         internal void ReportFixApplied(string title, string message)
         {
             string line = string.IsNullOrWhiteSpace(title) ? message : $"{title}: {message}";
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.BugFocused, "fix", "applied",
+                data: RuntimeInteractionLogger.Fields(("title", title), ("message", message)));
             try { LoggerInstance.Msg("[Fix] " + line); } catch { }
             try { _console?.Log(line); } catch { }
             try { _fixPopup?.Show(title, message); } catch { }
@@ -258,6 +272,10 @@ namespace KingdomMod.Loader
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "scene", "initialized",
+                data: RuntimeInteractionLogger.Fields(("buildIndex", buildIndex), ("sceneName", sceneName)));
+            RuntimeInteractionLogger.Flush();
+
             // The Managers singleton becomes available after the gameplay scene loads.
             // Resetting our cached references means events are re-bound for the new scene.
             KingdomMod.Internal.GameRefs.Invalidate();
@@ -317,6 +335,7 @@ namespace KingdomMod.Loader
 
         public override void OnUpdate()
         {
+            RuntimeInteractionLogger.Tick();
             if (_consoleEnabled.Value && UnityEngine.Input.GetKeyDown(KeyCode.F1)) _console?.Toggle();
             bool popupVisible = IsModalPopupVisible();
             if (_consoleEnabled.Value) _console?.OnUpdate(!popupVisible);
@@ -354,6 +373,16 @@ namespace KingdomMod.Loader
             _mpWarning?.OnGUI();
             _backupNotice?.OnGUI();
             _fixPopup?.OnGUI();
+        }
+
+        public override void OnApplicationQuit()
+        {
+            RuntimeInteractionLogger.Shutdown();
+        }
+
+        public override void OnDeinitializeMelon()
+        {
+            RuntimeInteractionLogger.Shutdown();
         }
 
         private bool IsModalPopupVisible()

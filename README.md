@@ -90,8 +90,8 @@ breakdown and limits.
 | [HudOverlay](examples/HudOverlay) | 3 | Day, phase, season, clock, and next Director events overlay | F2 |
 | [SpeedHotkeys](examples/SpeedHotkeys) | 3 | Speed down, reset, speed up, and freeze | F5 / F6 / F7 / F8 |
 | [AnyMount](examples/AnyMount) | 5 | Per-player mount selector using the game's own mount swap path | F4 |
-| [AnyTrees](examples/AnyTrees) | 5 | Builder cowardice and Guerilla Warfare F1 controls | F1 |
-| [ChallengeDumper](examples/ChallengeDumper) | Tools | Dump challenges, steeds, level configs, and biomes to JSON | F3 |
+| [AnyTrees](examples/AnyTrees) | 5 | Builder cowardice, builder speed, and Guerilla Warfare F1 controls | F1 |
+| [ChallengeDumper](examples/ChallengeDumper) | Tools | Dump loaded runtime game data to JSON | F3 |
 | [SandboxConsole](examples/SandboxConsole) | Tools | Dev console, game-state events, and sandbox hooks | F1 |
 | [ReskinPack](examples/ReskinPack) | 4 | Replace `Sprite` / `Texture2D` values from a no-code pack folder | - |
 
@@ -105,6 +105,7 @@ It includes:
 - Live status: readiness, island, day, season, coins, gems, and day/night.
 - Cheats: persisted radio rows for drops, coins, stamina, and gift controls.
 - Fixes: loader-owned safety fixes such as crown pickup and boar vanish repair.
+- Logging: current-session runtime diagnostics written to JSONL when enabled.
 - Mod options: controls registered by loaded mods through `Kingdom.Mods`.
 - Shortcuts: F-key help generated only from the mods currently loaded.
 - Tooltips and log output for quick in-game feedback.
@@ -122,6 +123,11 @@ For art mods, see
 [Sprite construction and replacement](docs/api-reference.md#sprite-construction-and-replacement).
 KingdomMod can load user-supplied PNGs and construct Unity sprites at runtime,
 but you must ship only your own art.
+
+For custom mounts, see [Mount modding guide](docs/mount-modding.md). It covers
+choosing a base mount, changing `Steed` fields, swapping through `Player.Ride`,
+replacing mount sprites and animation frames, packaging user-supplied art, and
+runtime behavior such as the AnyMount `Perverted deers` toggle.
 
 ## Safety
 

@@ -7,10 +7,12 @@
 // fills the gap.
 //
 // Output: <MelonLoader>/UserData/KingdomMod/dump/
-//   challenges.json     — ChallengeData (now with real Condition[] contents)
+//   challenges.json     — ChallengeData (with real Condition[] contents)
 //   steeds.json         — Steed prefabs (mount stats)
 //   levelconfigs.json   — LevelConfig SOs (per-island balance)
 //   biomes.json         — BiomeData SOs (biome composition)
+//   npcs/hermits/powers/monarchs/buffs/campaigns/biome*.json
+//   seasons.json and prefabs.json for broad runtime discovery
 //
 // Tip: open the relevant menu before pressing F3 — Unity only deserialises
 // SOs once they're referenced.  Dumping from the main menu catches less than
@@ -34,8 +36,8 @@ namespace KingdomMod.Examples.ChallengeDumper
     {
         public override void OnInitializeMelon()
         {
-            Kingdom.Mods.RegisterHotkey("F3", "Dump challenges / steeds / level configs / biomes to JSON");
-            LoggerInstance.Msg("Game Data Dumper loaded. F3 dumps challenges/steeds/level configs/biomes to UserData/KingdomMod/dump/.");
+            Kingdom.Mods.RegisterHotkey("F3", "Dump loaded game data to JSON");
+            LoggerInstance.Msg("Game Data Dumper loaded. F3 dumps runtime JSON snapshots to UserData/KingdomMod/dump/.");
         }
 
         public override void OnUpdate()
@@ -53,6 +55,16 @@ namespace KingdomMod.Examples.ChallengeDumper
             Dump<Steed>        (dir, "steeds.json",     WriteSteed);
             Dump<LevelConfig>  (dir, "levelconfigs.json", WriteLevelConfig);
             Dump<BiomeData>    (dir, "biomes.json",     WriteBiome);
+            DumpNpcs(dir);
+            DumpHermits(dir);
+            DumpPowers(dir);
+            DumpMonarchs(dir);
+            DumpBuffs(dir);
+            Dump<CampaignData>       (dir, "campaigns.json",   WriteCampaign);
+            Dump<BiomeSpecificAssets>(dir, "biomeassets.json", WriteBiomeSpecificAssets);
+            Dump<BiomeSwapData>      (dir, "biomeswaps.json",  WriteBiomeSwap);
+            DumpSeasons(dir);
+            DumpPrefabs(dir);
         }
 
         private void Dump<T>(string dir, string filename, System.Action<JsonW, T> writeOne) where T : UnityEngine.Object
@@ -254,9 +266,572 @@ namespace KingdomMod.Examples.ChallengeDumper
             w.EndObject();
         }
 
+        private void DumpNpcs(string dir)
+        {
+            var w = new JsonW();
+            w.BeginArray();
+            int written = 0;
+            written = DumpComponentGroup<Beggar>(w, "Beggar", written, WriteBeggar);
+            written = DumpComponentGroup<Peasant>(w, "Peasant", written, WritePeasant);
+            written = DumpComponentGroup<Worker>(w, "Builder", written, WriteWorker);
+            written = DumpComponentGroup<Archer>(w, "Archer", written, WriteArcher);
+            written = DumpComponentGroup<Knight>(w, "Knight", written, WriteKnight);
+            written = DumpComponentGroup<Berserker>(w, "Berserker", written, WriteBerserker);
+            written = DumpComponentGroup<WarriorGhostLeader>(w, "WarriorGhostLeader", written, WriteWarriorGhostLeader);
+            written = DumpComponentGroup<WarriorGhost>(w, "WarriorGhost", written, WriteWarriorGhost);
+            w.EndArray();
+            WriteJson(dir, "npcs.json", w, written);
+        }
+
+        private void DumpHermits(string dir)
+        {
+            var w = new JsonW();
+            w.BeginArray();
+            int written = DumpComponentGroup<Hermit>(w, "Hermit", 0, WriteHermit);
+            w.EndArray();
+            WriteJson(dir, "hermits.json", w, written);
+        }
+
+        private void DumpPowers(string dir)
+        {
+            var w = new JsonW();
+            w.BeginArray();
+            int written = 0;
+            written = DumpComponentGroup<ItemOfPower>(w, "ItemOfPower", written, WriteItemOfPower);
+            written = DumpComponentGroup<ItemOfPowerReward>(w, "ItemOfPowerReward", written, WriteItemOfPowerReward);
+            written = DumpComponentGroup<HelsHead>(w, "HelsHead", written, WriteHelsHead);
+            written = DumpComponentGroup<Player>(w, "PlayerPowerState", written, WritePlayerPowerState);
+            w.EndArray();
+            WriteJson(dir, "powers.json", w, written);
+        }
+
+        private void DumpMonarchs(string dir)
+        {
+            var w = new JsonW();
+            w.BeginArray();
+            int written = 0;
+            for (int i = 0; i < (int)MonarchType.Total; i++)
+            {
+                w.Comma(written > 0);
+                var monarch = (MonarchType)i;
+                w.BeginObject();
+                w.Field("recordKind", "MonarchType");
+                w.Field("value", i);
+                w.Field("name", monarch.ToString(), isLast: true);
+                w.EndObject();
+                written++;
+            }
+
+            written = DumpComponentGroup<Player>(w, "PlayerMonarchState", written, WritePlayerMonarchState);
+            written = DumpScriptableObjectGroup<BiomeSpecificAssets>(w, "BiomeSpecificAssets", written, WriteBiomeSpecificAssetsMonarchs);
+            w.EndArray();
+            WriteJson(dir, "monarchs.json", w, written);
+        }
+
+        private void DumpBuffs(string dir)
+        {
+            var w = new JsonW();
+            w.BeginArray();
+            int written = 0;
+            written = DumpScriptableObjectGroup<BuffData>(w, "BuffData", written, WriteBuffDataEntry);
+            written = DumpComponentGroup<Damageable>(w, "Damageable", written, WriteDamageableEntry);
+            w.EndArray();
+            WriteJson(dir, "buffs.json", w, written);
+        }
+
+        private void DumpSeasons(string dir)
+        {
+            var w = new JsonW();
+            w.BeginArray();
+            int written = 0;
+            written = DumpScriptableObjectGroup<Day>(w, "Day", written, WriteDay);
+            w.EndArray();
+            WriteJson(dir, "seasons.json", w, written);
+        }
+
+        private void DumpPrefabs(string dir)
+        {
+            var all = Resources.FindObjectsOfTypeAll<GameObject>();
+            var w = new JsonW();
+            w.BeginArray();
+            int written = 0;
+            if (all != null)
+            {
+                for (int i = 0; i < all.Length; i++)
+                {
+                    GameObject go = null;
+                    try { go = all[i]; } catch { }
+                    if (go == null) continue;
+                    try
+                    {
+                        w.Comma(written > 0);
+                        w.BeginObject();
+                        WriteGameObjectFields(w, "GameObject", go);
+                        w.Field("componentCount", ComponentCount(go), isLast: true);
+                        w.EndObject();
+                        written++;
+                    }
+                    catch (System.Exception e)
+                    {
+                        LoggerInstance.Warning($"  skipped GameObject {SafeObjectName(go)}: {e.Message}");
+                    }
+                }
+            }
+            w.EndArray();
+            WriteJson(dir, "prefabs.json", w, written);
+        }
+
+        private int DumpComponentGroup<T>(JsonW w, string kind, int written, System.Action<JsonW, string, T> writeOne) where T : Component
+        {
+            var all = Resources.FindObjectsOfTypeAll<T>();
+            if (all == null || all.Length == 0)
+            {
+                LoggerInstance.Warning($"No {typeof(T).Name} instances in memory.");
+                return written;
+            }
+
+            for (int i = 0; i < all.Length; i++)
+            {
+                T item = null;
+                try { item = all[i]; } catch { }
+                if (item == null) continue;
+                try
+                {
+                    w.Comma(written > 0);
+                    writeOne(w, kind, item);
+                    written++;
+                }
+                catch (System.Exception e)
+                {
+                    LoggerInstance.Warning($"  skipped {kind} {SafeObjectName(item)}: {e.Message}");
+                }
+            }
+
+            return written;
+        }
+
+        private int DumpScriptableObjectGroup<T>(JsonW w, string kind, int written, System.Action<JsonW, string, T> writeOne) where T : ScriptableObject
+        {
+            var all = Resources.FindObjectsOfTypeAll<T>();
+            if (all == null || all.Length == 0)
+            {
+                LoggerInstance.Warning($"No {typeof(T).Name} instances in memory.");
+                return written;
+            }
+
+            for (int i = 0; i < all.Length; i++)
+            {
+                T item = null;
+                try { item = all[i]; } catch { }
+                if (item == null) continue;
+                try
+                {
+                    w.Comma(written > 0);
+                    writeOne(w, kind, item);
+                    written++;
+                }
+                catch (System.Exception e)
+                {
+                    LoggerInstance.Warning($"  skipped {kind} {SafeObjectName(item)}: {e.Message}");
+                }
+            }
+
+            return written;
+        }
+
+        private void WriteJson(string dir, string filename, JsonW w, int written)
+        {
+            try
+            {
+                var path = Path.GetFullPath(Path.Combine(dir, filename));
+                File.WriteAllText(path, w.ToString());
+                LoggerInstance.Msg($"  {filename}: {written} entries -> {path}");
+            }
+            catch (System.Exception e)
+            {
+                LoggerInstance.Warning($"  {filename}: write failed: {e.Message}");
+            }
+        }
+
+        private static void WriteBeggar(JsonW w, string kind, Beggar b)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, b);
+            w.Field("playerId", Safe(() => b.PlayerId));
+            w.Field("despawnOnLoad", Safe(() => b.DespawnOnLoad));
+            w.Field("hasFoundBaker", Safe(() => b.hasFoundBaker), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WritePeasant(JsonW w, string kind, Peasant p)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, p);
+            w.Field("hasBuffable", Safe(() => p.Buffable != null), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteWorker(JsonW w, string kind, Worker worker)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, worker);
+            w.Field("playerId", Safe(() => worker.PlayerId));
+            w.Field("despawnOnLoad", Safe(() => worker.DespawnOnLoad));
+            w.Field("wallet", RefName(Safe(() => worker.Wallet)));
+            w.Field("canEmbark", Safe(() => worker.CanEmbark));
+            w.Field("unitType", Safe(() => worker.UnitType.ToString()), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteArcher(JsonW w, string kind, Archer archer)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, archer);
+            w.Field("playerId", Safe(() => archer.PlayerId));
+            w.Field("despawnOnLoad", Safe(() => archer.DespawnOnLoad));
+            w.Field("harmless", archer.harmless);
+            w.Field("shootRange", archer.shootRange);
+            w.Field("towerShootRange", archer.towerShootRange, isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteKnight(JsonW w, string kind, Knight knight)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, knight);
+            w.Field("playerId", Safe(() => knight.PlayerId));
+            w.Field("despawnOnLoad", Safe(() => knight.DespawnOnLoad));
+            w.Field("rank", knight.rank);
+            w.Field("numArchers", Safe(() => knight.numArchers));
+            w.Field("needsArmor", Safe(() => knight.NeedsArmor));
+            w.Field("isRetreating", Safe(() => knight.isRetreating));
+            w.Field("isCharging", Safe(() => knight.isCharging));
+            w.Field("side", Safe(() => knight.side.ToString()));
+            w.Field("wallet", RefName(Safe(() => knight.Wallet)), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteBerserker(JsonW w, string kind, Berserker berserker)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, berserker);
+            w.Field("playerId", Safe(() => berserker.PlayerId));
+            w.Field("despawnOnLoad", Safe(() => berserker.DespawnOnLoad));
+            w.Field("hasBuffable", Safe(() => berserker.Buffable != null), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteWarriorGhostLeader(JsonW w, string kind, WarriorGhostLeader leader)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, leader);
+            w.Field("statueBuffActive", Safe(() => leader.statueBuffActive));
+            w.Field("hasBuffable", Safe(() => leader.Buffable != null), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteWarriorGhost(JsonW w, string kind, WarriorGhost ghost)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, ghost);
+            w.Field("isAvailable", Safe(() => ghost.isAvailable));
+            w.Field("hasBuffable", Safe(() => ghost.Buffable != null), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteHermit(JsonW w, string kind, Hermit hermit)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, hermit);
+            w.Field("hermitType", Safe(() => hermit.Type.ToString()));
+            w.Field("canSailAway", Safe(() => hermit.CanSailAway));
+            w.Field("lostOnCrownLost", Safe(() => hermit.LostOnCrownLost));
+            w.Field("hasBuffable", Safe(() => hermit.Buffable != null), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteItemOfPower(JsonW w, string kind, ItemOfPower item)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, item);
+            w.Field("itemType", item.itemType.ToString());
+            w.Field("itemCooldown", Safe(() => item.ItemCooldown));
+            w.Field("isChanneledAbility", item.IsChanneledAbility);
+            w.Field("canActivate", Safe(() => item.CanActivate()), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteItemOfPowerReward(JsonW w, string kind, ItemOfPowerReward reward)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, reward);
+            w.Field("canBePaidByLoadedPlayer", CanAnyLoadedPlayerPay(reward), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteHelsHead(JsonW w, string kind, HelsHead head)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, head);
+            w.Field("itemType", head.itemType.ToString());
+            w.Field("itemCooldown", Safe(() => head.ItemCooldown));
+            w.Field("isChanneledAbility", head.IsChanneledAbility);
+            w.Field("canActivate", Safe(() => head.CanActivate()), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WritePlayerPowerState(JsonW w, string kind, Player player)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, player);
+            w.Field("playerId", player.playerId);
+            w.Field("equippedItemOfPower", Safe(() => player.equippedItemOfPower.ToString()));
+            w.Field("model", Safe(() => player.model.ToString()));
+            w.Field("hasCrown", Safe(() => player.hasCrown));
+            w.Field("coins", Safe(() => player.coins));
+            w.Field("gems", Safe(() => player.gems), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WritePlayerMonarchState(JsonW w, string kind, Player player)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, player);
+            w.Field("playerId", player.playerId);
+            w.Field("model", Safe(() => player.model.ToString()));
+            w.Field("hat", Safe(() => player.hat.ToString()));
+            w.Field("skinColor", Safe(() => ColorString(player.skinColor)));
+            w.Field("steedType", Safe(() => player.steed != null ? player.steed.steedType.ToString() : null));
+            w.Field("equippedItemOfPower", Safe(() => player.equippedItemOfPower.ToString()), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteBuffDataEntry(JsonW w, string kind, BuffData buff)
+        {
+            w.BeginObject();
+            WriteScriptableObjectFields(w, kind, buff);
+            w.Field("id", buff.ID);
+            w.Field("buffType", buff.BuffType.ToString());
+            w.Field("effectDuration", buff.EffectDuration);
+            w.Field("overlayColor", ColorString(buff.OverlayColor), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteDamageableEntry(JsonW w, string kind, Damageable damageable)
+        {
+            w.BeginObject();
+            WriteComponentFields(w, kind, damageable);
+            w.Field("invulnerable", Safe(() => damageable.invulnerable));
+            w.Field("isDead", Safe(() => damageable.isDead));
+            w.Field("useHitPoints", damageable.useHitPoints);
+            w.Field("hitPoints", Safe(() => damageable.hitPoints));
+            w.Field("initialHitPoints", damageable.initialHitPoints);
+            w.Field("damagedBy", damageable.damagedBy.ToString());
+            w.Field("ignoredWhenInvulnerable", damageable.ignoredWhenInvulnerable, isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteCampaign(JsonW w, CampaignData campaign)
+        {
+            w.BeginObject();
+            WriteScriptableObjectFields(w, "CampaignData", campaign);
+            w.Field("mainMap", RefName(campaign.mainMap));
+            w.FieldArray("mapLandPrefabs", RefNames(campaign.mapLandPrefabs), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteBiomeSpecificAssets(JsonW w, BiomeSpecificAssets assets)
+        {
+            w.BeginObject();
+            WriteScriptableObjectFields(w, "BiomeSpecificAssets", assets);
+            w.FieldArray("rulerPortraits", RefNames(assets.rulerPortraits));
+            w.FieldArray("uniquePrefabMasterCopies", RefNames(assets.uniquePrefabMasterCopies));
+            w.FieldArray("uniqueShopPrefabs", RefNames(assets.uniqueShopPrefabs));
+            w.FieldArray("uniqueCharacters", RefNames(assets.uniqueCharacters));
+            w.FieldArray("uniqueScatterableData", RefNames(assets.uniqueScatterableData));
+            w.FieldArray("biomeSteeds", RefNames(assets.biomeSteeds));
+            w.FieldArray("itemsOfPower", RefNames(assets.itemsOfPower));
+            w.Field("biomeBanner", RefName(assets.biomeBanner));
+            w.Field("biomeBannerTorn", RefName(assets.biomeBannerTorn));
+            w.Field("fleetBoatPrefab", RefName(assets.fleetBoatPrefab), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteBiomeSpecificAssetsMonarchs(JsonW w, string kind, BiomeSpecificAssets assets)
+        {
+            w.BeginObject();
+            WriteScriptableObjectFields(w, kind, assets);
+            w.FieldArray("rulerPortraits", RefNames(assets.rulerPortraits));
+            w.Field("rulerPortraitTypePairCount", Safe(() => assets.rulerPortraitTypePairs != null ? assets.rulerPortraitTypePairs.Count : 0), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteBiomeSwap(JsonW w, BiomeSwapData swap)
+        {
+            w.BeginObject();
+            WriteScriptableObjectFields(w, "BiomeSwapData", swap);
+            w.Field("assetNameField", swap.assetName);
+            w.Field("prefabSwapCount", CountOf(swap.prefabSwapPool));
+            w.Field("spriteSwapCount", CountOf(swap.spriteSwapPool));
+            w.Field("animatorSwapCount", CountOf(swap.animatorSwapPool));
+            w.Field("scriptableObjectSwapCount", CountOf(swap.scriptableObjectSwapPool));
+            w.Field("poolSwapCount", CountOf(swap.poolSwapData), isLast: true);
+            w.EndObject();
+        }
+
+        private static void WriteDay(JsonW w, string kind, Day day)
+        {
+            w.BeginObject();
+            WriteScriptableObjectFields(w, kind, day);
+            w.Field("seasonOptions", day.seasonOptions.ToString());
+            w.Field("weatherOptions", day.weatherOptions.ToString());
+            w.Field("biomeExclusive", day.biomeExlusive);
+            w.Field("shouldBeInRotation", day.ShouldBeInRotation);
+            w.Field("trackCount", CountOf(day.tracks));
+            w.Field("notes", day.notes, isLast: true);
+            w.EndObject();
+        }
+
         // ------------------------------------------------------------------
         // Conversion helpers
         // ------------------------------------------------------------------
+
+        private static void WriteComponentFields(JsonW w, string kind, Component c)
+        {
+            var go = c != null ? c.gameObject : null;
+            WriteGameObjectFields(w, kind, go);
+            w.Field("componentType", c != null ? c.GetIl2CppType().FullName : null);
+        }
+
+        private static void WriteGameObjectFields(JsonW w, string kind, GameObject go)
+        {
+            w.Field("recordKind", kind);
+            w.Field("assetName", SafeObjectName(go));
+            w.Field("isPrefab", IsPrefab(go));
+            w.Field("activeSelf", go != null && Safe(() => go.activeSelf));
+            w.Field("activeInHierarchy", go != null && Safe(() => go.activeInHierarchy));
+            w.Field("sceneHandle", SceneHandle(go));
+            w.Field("sceneName", SceneName(go));
+            w.Field("path", TransformPath(go));
+            w.Field("position", PositionString(go));
+            w.FieldArray("components", ComponentNames(go));
+        }
+
+        private static void WriteScriptableObjectFields(JsonW w, string kind, ScriptableObject obj)
+        {
+            w.Field("recordKind", kind);
+            w.Field("assetName", SafeObjectName(obj));
+            w.Field("il2cppType", obj != null ? obj.GetIl2CppType().FullName : null);
+        }
+
+        private static T Safe<T>(System.Func<T> get)
+        {
+            try { return get(); }
+            catch { return default; }
+        }
+
+        private static bool CanAnyLoadedPlayerPay(ItemOfPowerReward reward)
+        {
+            if (reward == null) return false;
+            var players = Resources.FindObjectsOfTypeAll<Player>();
+            if (players == null) return false;
+            for (int i = 0; i < players.Length; i++)
+            {
+                var player = players[i];
+                if (player == null) continue;
+                if (Safe(() => reward.CanPay(player))) return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsPrefab(GameObject go)
+        {
+            if (go == null) return false;
+            return Safe(() => go.scene.handle == 0);
+        }
+
+        private static int SceneHandle(GameObject go)
+        {
+            return go == null ? -1 : Safe(() => go.scene.handle);
+        }
+
+        private static string SceneName(GameObject go)
+        {
+            return go == null ? null : Safe(() => go.scene.name);
+        }
+
+        private static string PositionString(GameObject go)
+        {
+            if (go == null) return null;
+            return Safe(() => Vector3String(go.transform.position));
+        }
+
+        private static string Vector3String(Vector3 v)
+        {
+            return v.x.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + ","
+                + v.y.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + ","
+                + v.z.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static string ColorString(Color c)
+        {
+            return c.r.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + ","
+                + c.g.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + ","
+                + c.b.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + ","
+                + c.a.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static string TransformPath(GameObject go)
+        {
+            if (go == null) return null;
+            return Safe(() =>
+            {
+                var t = go.transform;
+                var path = SafeObjectName(go);
+                while (t != null && t.parent != null)
+                {
+                    t = t.parent;
+                    path = SafeObjectName(t.gameObject) + "/" + path;
+                }
+
+                return path;
+            });
+        }
+
+        private static int ComponentCount(GameObject go)
+        {
+            var names = ComponentNames(go);
+            return names.Count;
+        }
+
+        private static IList<string> ComponentNames(GameObject go)
+        {
+            var names = new List<string>();
+            if (go == null) return names;
+            var components = Safe(() => go.GetComponents<Component>());
+            if (components == null) return names;
+            for (int i = 0; i < components.Length; i++)
+            {
+                Component component = null;
+                try { component = components[i]; } catch { }
+                if (component == null) continue;
+                names.Add(component.GetIl2CppType().Name);
+            }
+
+            return names;
+        }
+
+        private static int CountOf<T>(Il2CppSystem.Collections.Generic.List<T> list)
+        {
+            return list != null ? list.Count : 0;
+        }
+
+        private static string SafeObjectName(UnityEngine.Object obj)
+        {
+            if (obj == null) return null;
+            return Safe(() => obj.name) ?? Safe(() => obj.GetIl2CppType().Name);
+        }
 
         private static string JoinStringList(Il2CppSystem.Collections.Generic.List<string> list)
         {
@@ -298,6 +873,14 @@ namespace KingdomMod.Examples.ChallengeDumper
             return r;
         }
 
+        private static IList<string> RefNames<T>(Il2CppSystem.Collections.Generic.List<T> list) where T : Il2CppSystem.Object
+        {
+            var r = new List<string>();
+            if (list == null) return r;
+            for (int i = 0; i < list.Count; i++) r.Add(RefName(list[i] as UnityEngine.Object));
+            return r;
+        }
+
         private static string RefName(UnityEngine.Object obj)
         {
             if (obj == null) return null;
@@ -330,7 +913,7 @@ namespace KingdomMod.Examples.ChallengeDumper
             public void Field(string key, float v,  bool isLast = false)  => WriteLine(key, v.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture), isLast);
             public void Field(string key, bool v,   bool isLast = false)  => WriteLine(key, v ? "true" : "false", isLast);
 
-            public void FieldArray(string key, IList<string> items)
+            public void FieldArray(string key, IList<string> items, bool isLast = false)
             {
                 _sb.Append(Indent()).Append('"').Append(key).Append("\": [");
                 for (int i = 0; i < items.Count; i++)
@@ -338,7 +921,7 @@ namespace KingdomMod.Examples.ChallengeDumper
                     if (i > 0) _sb.Append(", ");
                     _sb.Append(JsonStr(items[i]));
                 }
-                _sb.Append("],\n");
+                _sb.Append(isLast ? "]\n" : "],\n");
             }
 
             public void BeginNested(string key)

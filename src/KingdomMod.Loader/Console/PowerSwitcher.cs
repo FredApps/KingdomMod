@@ -31,6 +31,8 @@ namespace KingdomMod.Loader.Console
             {
                 player.equippedItemOfPower = item;
                 RefreshPlayer(player);
+                RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "power", "apply_item_power", player,
+                    data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber), ("item", item)));
                 log($"Player {playerNumber} item of power: {ItemLabel(item)}.");
             }
             catch (Exception e)
@@ -171,6 +173,8 @@ namespace KingdomMod.Loader.Console
                 player.model = model;
                 try { CampaignSaveData.current?.SetPlayerAppearance(model, player.playerId); } catch { }
                 RefreshPlayer(player);
+                RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "power", "apply_monarch", player,
+                    data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber), ("model", model), ("label", label)));
                 log($"Player {playerNumber} monarch: {label}.");
             }
             catch (Exception e)

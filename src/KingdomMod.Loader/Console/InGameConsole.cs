@@ -215,6 +215,14 @@ namespace KingdomMod.Loader.Console
 
             GUILayout.Space(12);
 
+            GUILayout.BeginVertical(GUILayout.Width(220));
+            GUILayout.Label(new GUIContent("Logging", "Current-session runtime diagnostics. Writes to UserData/KingdomMod/logs/runtime-latest.jsonl."), _titleLabel);
+            GUILayout.Label(new GUIContent("  <u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel);
+            DrawRuntimeLoggingRadio();
+            GUILayout.EndVertical();
+
+            GUILayout.Space(12);
+
             // Column 1b â€” mod-published toggles + choices (Kingdom.Mods registry).
             // Each mod owns its own state; we just render get/set.
             GUILayout.BeginVertical(GUILayout.Width(240));
@@ -372,6 +380,15 @@ namespace KingdomMod.Loader.Console
                 }
             }
             catch (System.Exception e) { Log($"Powers reset failed â€” {e.Message}"); }
+            try
+            {
+                if (LoaderMod.Instance != null && LoaderMod.Instance.ExtendedRuntimeLogging != RuntimeLogLevel.None)
+                {
+                    LoaderMod.Instance.PersistRuntimeLogging(RuntimeLogLevel.None);
+                    n++;
+                }
+            }
+            catch (System.Exception e) { Log($"Runtime logging reset failed - {e.Message}"); }
 
             Log($"Reset {n} control(s) to off.");
         }
@@ -578,6 +595,32 @@ namespace KingdomMod.Loader.Console
             }
         }
 
+        private static void DrawRuntimeLoggingRadio()
+        {
+            var cur = LoaderMod.Instance?.ExtendedRuntimeLogging ?? RuntimeLogLevel.None;
+            GUILayout.BeginHorizontal();
+            DrawRuntimeLoggingOption("None", RuntimeLogLevel.None, cur, 52);
+            DrawRuntimeLoggingOption("Bug", RuntimeLogLevel.BugFocused, cur, 48);
+            DrawRuntimeLoggingOption("Event", RuntimeLogLevel.EventHeavy, cur, 54);
+            DrawRuntimeLoggingOption("Raw", RuntimeLogLevel.MaximumRaw, cur, 48);
+            GUILayout.EndHorizontal();
+        }
+
+        private static void DrawRuntimeLoggingOption(string label, RuntimeLogLevel level, RuntimeLogLevel current, float width)
+        {
+            bool isOn = current == level;
+            string tip = level switch
+            {
+                RuntimeLogLevel.BugFocused => "Bug-focused: crown, boar, damage, droppables, wallets, and builder/construction flows.",
+                RuntimeLogLevel.EventHeavy => "Event-heavy: bug-focused logs plus scene/player/NPC/power/mount and selected state-machine transitions.",
+                RuntimeLogLevel.MaximumRaw => "Maximum raw: event-heavy logs plus noisier job/target/state calls, capped per session.",
+                _ => "None: do not write extended runtime interaction logs."
+            };
+            bool next = GUILayout.Toggle(isOn, new GUIContent(label, tip), "Button", GUILayout.Width(width));
+            if (next && !isOn)
+                LoaderMod.Instance?.PersistRuntimeLogging(level);
+        }
+
         private static void DrawCoinCheatOption(string label, CoinCheatMode mode, CoinCheatMode current, string tip)
         {
             bool isOn = (current == mode);
@@ -752,6 +795,8 @@ namespace KingdomMod.Loader.Console
                 return;
             }
             p.wallet.Coins = System.Math.Max(0, p.wallet.Coins + amount);
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "gift", "give_coins", p,
+                data: RuntimeInteractionLogger.Fields(("player", _giftTarget + 1), ("amount", amount), ("wallet", RuntimeLogWalletText(p.wallet))));
             Log($"Player {_giftTarget + 1}: +{amount} coins.");
         }
 
@@ -764,7 +809,15 @@ namespace KingdomMod.Loader.Console
                 return;
             }
             p.wallet.Gems = System.Math.Max(0, p.wallet.Gems + amount);
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "gift", "give_gems", p,
+                data: RuntimeInteractionLogger.Fields(("player", _giftTarget + 1), ("amount", amount), ("wallet", RuntimeLogWalletText(p.wallet))));
             Log($"Player {_giftTarget + 1}: +{amount} gems.");
+        }
+
+        private static string RuntimeLogWalletText(Wallet wallet)
+        {
+            try { return wallet == null ? null : $"coins={wallet.Coins};gems={wallet.Gems}"; }
+            catch { return null; }
         }
 
         private static Player FindPlayer(int playerId)
@@ -929,6 +982,8 @@ namespace KingdomMod.Loader.Console
             try
             {
                 target.Ride(instance, replace: true, applyToCampaign: true);
+                RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "mount", "ride", target, instance,
+                    data: RuntimeInteractionLogger.Fields(("player", playerId + 1), ("steedType", steedPrefab.steedType), ("steedName", steedPrefab.name)));
                 Log($"Player {playerId + 1} now riding {steedPrefab.steedType}.");
             }
             catch (System.Exception e)

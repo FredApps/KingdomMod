@@ -55,6 +55,8 @@ Change *what the game does*, not just numbers.
 ### Tooling — Sandbox, cheats, dev console (Easy)
 - In‑game console (toggle with F1) to give currency, spawn units, set time scale,
   toggle invulnerability, inspect state.
+- Current-session JSONL runtime logging for bug hunts, from focused crown/boar
+  flows up to noisier raw interaction traces.
 - **Example mod:** [`examples/SandboxConsole`](../examples/SandboxConsole).
 
 ### Tier 5 — New content (Hard)
@@ -68,8 +70,9 @@ Change *what the game does*, not just numbers.
   Player 2" button.  Mid-game switching goes through `Player.Ride(steed,
   replace: true, applyToCampaign: true)` — the game's own mount-swap entry
   point, so dismount, network sync, and campaign-save persistence all happen
-  for free.  See [`examples/AnyMount`](../examples/AnyMount).
-- **AnyTrees** — two-feature mod for the monarch's builder workflow:
+  for free.  See [`examples/AnyMount`](../examples/AnyMount) and the
+  [`Mount modding guide`](mount-modding.md).
+- **AnyTrees** — three-control mod for the monarch's builder workflow:
   - *Mark any tree* for chopping, including the forest-edge/deep-forest trees
     the marker normally refuses.  Workers are unchanged: they still only chop
     trees the monarch has paid to mark.  Implemented as a `PayableTree.UpdateSelectableStatus`
@@ -77,6 +80,10 @@ Change *what the game does*, not just numbers.
     propagation) plus `PayableTree.CanSelect` and `PayableTree.CanPay`
     postfixes.  An in-mod `WorkableTree.IsMarked()` check leaves vanilla in
     charge of already-marked trees so the coin indicator hides correctly.
+  - *Builder speed* can complete construction as soon as a builder actually
+    starts work on it, through `ConstructionBuildingComponent.IncrementBuild`
+    and the game's own `ForceComplete` path. Payment and builder travel remain
+    vanilla; only the post-arrival construction time is shortened.
   - *Build towers between trees* inside the forest (vanilla locks towers to
     the cleared "buildable region").  Implemented by mutating
     `PayableUpgrade.onlyInBuildableRegion` per-instance, cached by Il2Cpp
@@ -85,11 +92,11 @@ Change *what the game does*, not just numbers.
     the field mutation raced an `Awake`.  Scoped to towers only —
     walls, farms, and workshops keep their vanilla region restriction so
     clearing space stays meaningful.
-  - The two features are independent F1 → Mods toggles — **AnyTrees**
-    (tree-marking) and **Guerilla Warfare** (towers-in-forest) — each backed
-    by its own `MelonPreferences` entry so the F1 state is remembered across
-    sessions.  A **Reset (all off)** button in the Mods column flips every
-    registered toggle/choice off in one click.
+  - The three features are independent F1 → Mods radio rows — **Builder
+    cowardice**, **Builder speed**, and **Guerilla Warfare** — each backed by
+    its own `MelonPreferences` entry so the F1 state is remembered across
+    sessions.  A **Reset** button in the console flips every registered
+    toggle/choice back to its first option.
     See [`examples/AnyTrees`](../examples/AnyTrees).
 - **SpeedTweaks** — slider-style multiplier on `Director.ClockSpeedModifier`,
   with an "engine maximum" upper bound derived at level-load by sampling
@@ -116,11 +123,13 @@ Change *what the game does*, not just numbers.
   so main-menu keypresses are no-ops.  See
   [`examples/SpeedHotkeys`](../examples/SpeedHotkeys).
 - **ChallengeDumper** (a.k.a. Game Data Dumper) — **F3** writes JSON snapshots
-  of every loaded `ChallengeData`, `Steed`, `LevelConfig`, and `BiomeData` SO
-  to `<MelonLoader>/UserData/KingdomMod/dump/`.  IL2CPP MonoBehaviour
-  serialisation is not statically decodable by free AssetRipper, so this is
-  the path to read the live, deserialised values used by the game.  Open the
-  challenges menu first so the SOs are referenced into memory.
+  of loaded runtime data to `<MelonLoader>/UserData/KingdomMod/dump/`,
+  including challenges, steeds, level configs, biomes, NPCs, hermits, powers,
+  monarchs, buffs, campaigns, biome assets, biome swaps, season/day data, and
+  a broad prefab inventory.  IL2CPP MonoBehaviour serialisation is not
+  statically decodable by free AssetRipper, so this is the path to read the
+  live, deserialised values used by the game.  Open the relevant menu or enter
+  a run first so more assets are referenced into memory.
   See [`examples/ChallengeDumper`](../examples/ChallengeDumper).
 
 ---

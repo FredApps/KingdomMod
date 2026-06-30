@@ -18,6 +18,8 @@ namespace KingdomMod.Loader.Console
             var beggar = Spawn(source, player, 0, "Gifted Beggar");
             if (beggar == null) { log("Beggar spawn failed."); return; }
             try { KingdomMod.Internal.GameRefs.Kingdom?.AddBeggar(beggar); } catch { }
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "npc_gift", "spawn_beggar", beggar, player,
+                data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber)));
             log($"Spawned beggar beside Player {playerNumber}.");
         }
 
@@ -52,6 +54,8 @@ namespace KingdomMod.Loader.Console
 
             var hermit = Spawn(source, player, 0, $"Gifted {type} Hermit");
             if (hermit == null) { log($"{type} hermit spawn failed."); return; }
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "npc_gift", "spawn_hermit", hermit, player,
+                data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber), ("hermitType", type)));
             log($"Spawned {type} hermit beside Player {playerNumber}.");
         }
 
@@ -125,6 +129,8 @@ namespace KingdomMod.Loader.Console
             // and drags its followers along.
             try { leader._shouldCharge = true; } catch { }
 
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "npc_gift", "spawn_ghost_party", leader, player,
+                data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber), ("followers", followers)));
             log($"Spawned Hel ghost party beside Player {playerNumber}: 1 leader, {followers} ghosts.");
         }
 
@@ -208,6 +214,8 @@ namespace KingdomMod.Loader.Console
 
             var unit = Spawn(source, player, 0, $"Gifted {label}");
             if (unit == null) { log($"{label} spawn failed."); return; }
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "npc_gift", "spawn_unit", unit, player,
+                data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber), ("label", label)));
             log($"Spawned {label.ToLowerInvariant()} beside Player {playerNumber}.");
         }
 
@@ -226,7 +234,15 @@ namespace KingdomMod.Loader.Console
 
             try { knight.rank = preferSquire ? 0 : Math.Max(1, knight.rank); } catch { }
             if (fillCoins) FillKnightWallet(knight, log);
+            RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "npc_gift", "spawn_knight_like", knight, player,
+                data: RuntimeInteractionLogger.Fields(("playerNumber", playerNumber), ("label", label), ("fillCoins", fillCoins), ("rank", SafeRank(knight))));
             log($"Spawned {label.ToLowerInvariant()} beside Player {playerNumber}.");
+        }
+
+        private static int SafeRank(Knight knight)
+        {
+            try { return knight.rank; }
+            catch { return -1; }
         }
 
         private static bool MatchesKnightKind(Knight knight, bool squire)

@@ -8,7 +8,9 @@
 // fired on every save load and was a paper cut. Mid-game swap goes through
 // Player.Ride(steed, replace: true), the game's own mount-swap entry point.
 
+using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
 using KingdomMod;
@@ -22,6 +24,8 @@ namespace KingdomMod.Examples.AnyMount
     public sealed class AnyMountMod : MelonMod
     {
         private static MelonPreferences_Entry<int> _coinGift;
+        private static MelonPreferences_Entry<bool> _pervertedDeers;
+        private static readonly Dictionary<IntPtr, bool> _originalAttractsDeer = new();
 
         private bool _selecting;
         private int  _targetPlayerId;
@@ -29,18 +33,47 @@ namespace KingdomMod.Examples.AnyMount
         private Rect _window = new Rect(60, 60, 500, 520);
         private readonly List<Steed> _options = new();
         private float _previousTimeScale = 1f;
+        private float _nextDeerSweepTime;
+
+        internal static bool PervertedDeers
+        {
+            get => _pervertedDeers?.Value ?? false;
+            private set
+            {
+                if (_pervertedDeers == null) return;
+                if (_pervertedDeers.Value == value) return;
+                _pervertedDeers.Value = value;
+                MelonPreferences.Save();
+                ReapplyActiveMounts();
+            }
+        }
 
         public override void OnInitializeMelon()
         {
             var cat = MelonPreferences.CreateCategory("KingdomMod.AnyMount", "Any Mount");
             _coinGift = cat.CreateEntry("CoinGiftAmount", 25,
                 "Coins handed out by the 'Give coins to Player 2' button in the selector.");
+            _pervertedDeers = cat.CreateEntry("PervertedDeers", false,
+                "When true, active mounts attract deer even if their prefab normally does not.");
+            HarmonyHelper.PatchAll(this);
+            Kingdom.Mods.RegisterChoice("Perverted deers",
+                new[] { "Off", "On" },
+                () => PervertedDeers ? 1 : 0,
+                idx => PervertedDeers = (idx == 1),
+                "Off = vanilla deer attraction. On = every active mount attracts deer, including after mount swaps.");
             Kingdom.Mods.RegisterHotkey("F4", "Open the per-player mount selector (also in F1 -> Mount)");
-            LoggerInstance.Msg("AnyMount ready — press F4 to swap a player's mount, or use F1 → Mount.");
+            ReapplyActiveMounts();
+            LoggerInstance.Msg($"AnyMount ready (PervertedDeers={PervertedDeers}) — press F4 to swap a player's mount, or use F1 → Mount.");
         }
 
         public override void OnUpdate()
         {
+            if (PervertedDeers && Time.unscaledTime >= _nextDeerSweepTime)
+            {
+                _nextDeerSweepTime = Time.unscaledTime + 0.5f;
+                ReapplyActiveMounts(log: false);
+            }
+
             if (_selecting)
             {
                 if (UnityEngine.Input.GetKeyDown(KeyCode.Escape))
@@ -200,6 +233,101 @@ namespace KingdomMod.Examples.AnyMount
         {
             _selecting = false;
             Time.timeScale = _previousTimeScale;
+        }
+
+        internal static void ReapplyActiveMounts(bool log = true)
+        {
+            int patched = 0, restored = 0, seen = 0;
+            foreach (var steed in Resources.FindObjectsOfTypeAll<Steed>())
+            {
+                if (!IsActiveSceneSteed(steed)) continue;
+                seen++;
+                if (PervertedDeers)
+                {
+                    if (SetAttractsDeer(steed, true)) patched++;
+                }
+                else if (RestoreAttractsDeer(steed))
+                {
+                    restored++;
+                }
+            }
+
+            if (log)
+            {
+                MelonLogger.Msg($"[AnyMount] Perverted deers reapplied: enabled={PervertedDeers}, activeMounts={seen}, patched={patched}, restored={restored}.");
+            }
+        }
+
+        internal static void ApplyToMountedSteed(Steed steed)
+        {
+            if (!PervertedDeers) return;
+            if (!IsActiveSceneSteed(steed)) return;
+            if (SetAttractsDeer(steed, true))
+            {
+                MelonLogger.Msg($"[AnyMount] Perverted deers enabled for mounted {SafeSteedName(steed)}.");
+            }
+        }
+
+        private static bool SetAttractsDeer(Steed steed, bool value)
+        {
+            if (steed == null) return false;
+            var pointer = steed.Pointer;
+            if (pointer == IntPtr.Zero) return false;
+            if (!_originalAttractsDeer.ContainsKey(pointer))
+            {
+                _originalAttractsDeer[pointer] = steed.attractsDeer;
+            }
+            if (steed.attractsDeer == value) return false;
+            steed.attractsDeer = value;
+            return true;
+        }
+
+        private static bool RestoreAttractsDeer(Steed steed)
+        {
+            if (steed == null) return false;
+            var pointer = steed.Pointer;
+            if (pointer == IntPtr.Zero) return false;
+            if (!_originalAttractsDeer.TryGetValue(pointer, out var original)) return false;
+            if (steed.attractsDeer == original) return false;
+            steed.attractsDeer = original;
+            return true;
+        }
+
+        private static bool IsActiveSceneSteed(Steed steed)
+        {
+            try
+            {
+                return steed != null
+                    && steed.Pointer != IntPtr.Zero
+                    && steed.gameObject != null
+                    && steed.gameObject.scene.handle != 0
+                    && steed.gameObject.activeInHierarchy;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string SafeSteedName(Steed steed)
+        {
+            try
+            {
+                return $"{steed.steedType} ({steed.name})";
+            }
+            catch
+            {
+                return "(unknown steed)";
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Player), nameof(Player.Ride), new[] { typeof(Steed), typeof(bool), typeof(bool) })]
+    internal static class PlayerRidePatch
+    {
+        private static void Postfix(Steed steed)
+        {
+            AnyMountMod.ApplyToMountedSteed(steed);
         }
     }
 }

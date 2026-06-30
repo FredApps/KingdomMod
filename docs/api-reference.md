@@ -34,6 +34,10 @@ game starts. Your mod usually does four things:
 Use the SDK first. Reach for direct `Il2Cpp.*` types and Harmony patches only
 when the facade does not expose what you need.
 
+For mount-specific work, see [`mount-modding.md`](mount-modding.md). It covers
+`Steed` fields, prefab discovery, active mount changes, and the safe
+`Player.Ride` swap path.
+
 ## Smallest complete mod
 
 Create a folder such as `examples/HelloDay/`, then add these two files.
