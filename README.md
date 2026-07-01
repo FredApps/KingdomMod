@@ -132,7 +132,7 @@ For custom mounts, see [Mount modding guide](docs/mount-modding.md). It covers
 choosing a base mount, changing `Steed` fields, swapping through `Player.Ride`,
 replacing mount sprites and animation frames, registering mounts in the F1
 Custom Mounts menu, packaging user-supplied art, and runtime behavior such as
-the AnyMount `Perverted deers` toggle.
+the AnyMount `Everloving Deers` toggle.
 
 For custom challenge and island recipes, see
 [Custom Challenges And Islands](docs/custom-challenges.md). It covers the F3
@@ -170,3 +170,17 @@ respective owners (noio / Raw Fury). KingdomMod ships no game code or game
 assets. To use this platform you must own a legitimate copy of Kingdom Two
 Crowns; the IL2CPP interop assemblies that mods compile against are generated
 from YOUR OWN installation and are never redistributed.
+
+## Disclaimer
+
+KingdomMod is an entirely community-driven project. It is **not affiliated with,
+endorsed by, sponsored by, or approved by** the brand Kingdom Two Crowns,
+Raw Fury, Stumpy Squid, Fury Studios, or Coatsink. All product names,
+trademarks, and registered trademarks are the property of their respective
+owners and are used here only for identification.
+
+Participation in, or installation and use of, this software is entirely **at the
+user's own risk**. It is provided "as is", without warranty of any kind (see the
+[LICENSE](LICENSE)); the authors and contributors accept no liability for any
+damage, data loss, save corruption, account action, or other consequence arising
+from its use.
