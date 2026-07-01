@@ -24,7 +24,7 @@ namespace KingdomMod.Examples.AnyMount
     public sealed class AnyMountMod : MelonMod
     {
         private static MelonPreferences_Entry<int> _coinGift;
-        private static MelonPreferences_Entry<bool> _pervertedDeers;
+        private static MelonPreferences_Entry<bool> _everlovingDeers;
         private static readonly Dictionary<IntPtr, bool> _originalAttractsDeer = new();
 
         private bool _selecting;
@@ -35,14 +35,14 @@ namespace KingdomMod.Examples.AnyMount
         private float _previousTimeScale = 1f;
         private float _nextDeerSweepTime;
 
-        internal static bool PervertedDeers
+        internal static bool EverlovingDeers
         {
-            get => _pervertedDeers?.Value ?? false;
+            get => _everlovingDeers?.Value ?? false;
             private set
             {
-                if (_pervertedDeers == null) return;
-                if (_pervertedDeers.Value == value) return;
-                _pervertedDeers.Value = value;
+                if (_everlovingDeers == null) return;
+                if (_everlovingDeers.Value == value) return;
+                _everlovingDeers.Value = value;
                 MelonPreferences.Save();
                 ReapplyActiveMounts();
             }
@@ -53,22 +53,22 @@ namespace KingdomMod.Examples.AnyMount
             var cat = MelonPreferences.CreateCategory("KingdomMod.AnyMount", "Any Mount");
             _coinGift = cat.CreateEntry("CoinGiftAmount", 25,
                 "Coins handed out by the 'Give coins to Player 2' button in the selector.");
-            _pervertedDeers = cat.CreateEntry("PervertedDeers", false,
+            _everlovingDeers = cat.CreateEntry("EverlovingDeers", false,
                 "When true, active mounts attract deer even if their prefab normally does not.");
             HarmonyHelper.PatchAll(this);
-            Kingdom.Mods.RegisterChoice("Perverted deers",
+            Kingdom.Mods.RegisterChoice("Everloving Deers",
                 new[] { "Off", "On" },
-                () => PervertedDeers ? 1 : 0,
-                idx => PervertedDeers = (idx == 1),
+                () => EverlovingDeers ? 1 : 0,
+                idx => EverlovingDeers = (idx == 1),
                 "Off = vanilla deer attraction. On = every active mount attracts deer, including after mount swaps.");
             Kingdom.Mods.RegisterHotkey("F4", "Open the per-player mount selector (also in F1 -> Mount)");
             ReapplyActiveMounts();
-            LoggerInstance.Msg($"AnyMount ready (PervertedDeers={PervertedDeers}) — press F4 to swap a player's mount, or use F1 → Mount.");
+            LoggerInstance.Msg($"AnyMount ready (EverlovingDeers={EverlovingDeers}) — press F4 to swap a player's mount, or use F1 → Mount.");
         }
 
         public override void OnUpdate()
         {
-            if (PervertedDeers && Time.unscaledTime >= _nextDeerSweepTime)
+            if (EverlovingDeers && Time.unscaledTime >= _nextDeerSweepTime)
             {
                 _nextDeerSweepTime = Time.unscaledTime + 0.5f;
                 ReapplyActiveMounts(log: false);
@@ -242,7 +242,7 @@ namespace KingdomMod.Examples.AnyMount
             {
                 if (!IsActiveSceneSteed(steed)) continue;
                 seen++;
-                if (PervertedDeers)
+                if (EverlovingDeers)
                 {
                     if (SetAttractsDeer(steed, true)) patched++;
                 }
@@ -254,17 +254,17 @@ namespace KingdomMod.Examples.AnyMount
 
             if (log)
             {
-                MelonLogger.Msg($"[AnyMount] Perverted deers reapplied: enabled={PervertedDeers}, activeMounts={seen}, patched={patched}, restored={restored}.");
+                MelonLogger.Msg($"[AnyMount] Everloving Deers reapplied: enabled={EverlovingDeers}, activeMounts={seen}, patched={patched}, restored={restored}.");
             }
         }
 
         internal static void ApplyToMountedSteed(Steed steed)
         {
-            if (!PervertedDeers) return;
+            if (!EverlovingDeers) return;
             if (!IsActiveSceneSteed(steed)) return;
             if (SetAttractsDeer(steed, true))
             {
-                MelonLogger.Msg($"[AnyMount] Perverted deers enabled for mounted {SafeSteedName(steed)}.");
+                MelonLogger.Msg($"[AnyMount] Everloving Deers enabled for mounted {SafeSteedName(steed)}.");
             }
         }
 

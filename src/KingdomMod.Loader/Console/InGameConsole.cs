@@ -245,11 +245,11 @@ namespace KingdomMod.Loader.Console
                         try { t.Set(next); } catch (System.Exception e) { Log($"{t.Label}: set failed â€” {e.Message}"); }
                     }
                 }
-                // Render "Perverted deers" last, regardless of mod load order.
+                // Render "Everloving Deers" last, regardless of mod load order.
                 int deferred = -1;
                 for (int i = 0; i < choices.Count; i++)
                 {
-                    if (choices[i].Label == "Perverted deers") { deferred = i; continue; }
+                    if (choices[i].Label == "Everloving Deers") { deferred = i; continue; }
                     DrawModChoice(choices[i]);
                 }
                 if (deferred >= 0) DrawModChoice(choices[deferred]);
