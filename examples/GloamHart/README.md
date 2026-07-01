@@ -4,8 +4,10 @@ Gloam Hart is a complete custom mount example.
 
 It registers with `Kingdom.CustomMounts`, appears in the F1 `Custom` mount menu,
 clones a Reindeer/Stag-style `Steed` prefab, applies custom forest-friendly
-deer-attracting stats, hides the cloned vanilla renderers, and animates original
-embedded PNG frames through a lightweight overlay `SpriteRenderer`.
+deer-attracting stats, hides the clone's **body** renderers (while keeping the
+mounted ruler and crown renderers enabled so the monarch stays visible), and
+animates original embedded PNG frames through a lightweight overlay
+`SpriteRenderer`.
 
 The editable design lives in `design/gloam_hart.mount-design.json`. The 32
 generated frames live in `assets/gloam_hart/`:

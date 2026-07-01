@@ -100,17 +100,30 @@ namespace KingdomMod.Examples.GloamHart
 
         private static void AttachVisual(Steed steed, Action<string> log)
         {
+            // The steed prefab renders the mounted ruler (monarch) and crowns
+            // through GameObjects parented under the steed itself (riderAnchor,
+            // _riderObjectPairs, _crowns). Those renderers must stay enabled, or
+            // the monarch turns invisible while riding. Only the steed's own body
+            // renderers get hidden so the custom overlay can replace them.
+            var keep = new HashSet<IntPtr>();
+            CollectRulerRenderers(steed, keep);
+
             SpriteRenderer reference = null;
             foreach (var renderer in steed.GetComponentsInChildren<SpriteRenderer>(true))
             {
                 if (renderer == null) continue;
+                if (renderer.Pointer != IntPtr.Zero && keep.Contains(renderer.Pointer)) continue;
                 if (reference == null && renderer.sprite != null)
                     reference = renderer;
                 renderer.enabled = false;
             }
 
             var visualObject = new GameObject("GloamHartVisual");
-            visualObject.transform.SetParent(steed.transform, false);
+            // Parent under the body renderer's own parent so its local position
+            // and scale share the body's coordinate space; falling back to the
+            // steed root keeps a sane placement when no body renderer is found.
+            var anchor = reference != null ? reference.transform.parent : steed.transform;
+            visualObject.transform.SetParent(anchor != null ? anchor : steed.transform, false);
             visualObject.transform.localPosition = reference != null
                 ? reference.transform.localPosition
                 : new Vector3(0f, 0.3f, 0f);
@@ -122,13 +135,57 @@ namespace KingdomMod.Examples.GloamHart
                 renderer2.sortingLayerID = reference.sortingLayerID;
                 renderer2.sortingOrder = reference.sortingOrder + 1;
             }
+            else
+            {
+                // No body renderer resolved: render on top of the default layer
+                // instead of leaving the overlay at sortingOrder 0 behind terrain.
+                renderer2.sortingOrder = 100;
+            }
 
             renderer2.sprite = Frame("idle", 0);
             var pointer = steed.Pointer;
             if (pointer != IntPtr.Zero)
                 Visuals[pointer] = new GloamHartVisual(steed, renderer2);
 
-            log?.Invoke("Gloam Hart: custom visual attached; vanilla clone renderers hidden.");
+            log?.Invoke("Gloam Hart: custom visual attached; vanilla body renderers hidden (ruler kept).");
+        }
+
+        // Renderers that belong to the mounted ruler (monarch) and crowns, which
+        // live under the steed hierarchy and must not be disabled.
+        private static void CollectRulerRenderers(Steed steed, HashSet<IntPtr> keep)
+        {
+            try
+            {
+                var anchor = steed.riderAnchor;
+                if (anchor != null)
+                    foreach (var r in anchor.GetComponentsInChildren<SpriteRenderer>(true))
+                        if (r != null && r.Pointer != IntPtr.Zero) keep.Add(r.Pointer);
+            }
+            catch { }
+
+            try
+            {
+                var pairs = steed._riderObjectPairs;
+                if (pairs != null)
+                {
+                    foreach (var value in pairs.Values)
+                    {
+                        if (value == null) continue;
+                        foreach (var r in value.GetComponentsInChildren<SpriteRenderer>(true))
+                            if (r != null && r.Pointer != IntPtr.Zero) keep.Add(r.Pointer);
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                var crowns = steed._crowns;
+                if (crowns != null)
+                    for (int i = 0; i < crowns.Count; i++)
+                        if (crowns[i] != null && crowns[i].Pointer != IntPtr.Zero) keep.Add(crowns[i].Pointer);
+            }
+            catch { }
         }
 
         private static Steed FindBasePrefab(Action<string> log)

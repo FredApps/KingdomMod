@@ -494,8 +494,9 @@ swap path and lets the loader log the F1 action.
 
 `examples/GloamHart` is the current complete reference. It clones a
 Reindeer/Stag-style prefab, applies forest-friendly deer-attracting stats, hides
-the clone's vanilla renderers, attaches a custom `SpriteRenderer`, and animates
-32 original frames from embedded PNG resources.
+the clone's **body** renderers (keeping the ruler/crown renderers so the mounted
+monarch stays visible), attaches a custom `SpriteRenderer`, and animates 32
+original frames from embedded PNG resources.
 
 ## Embedded Sprites For Bundled Mount Mods
 
@@ -572,7 +573,8 @@ For a complete custom mount without editing vanilla animation clips, use the
 overlay path:
 
 1. Clone the closest base `Steed` prefab.
-2. Disable the clone's child `SpriteRenderer`s.
+2. Disable the clone's **body** `SpriteRenderer`s only — **not every child
+   renderer**. See the warning below.
 3. Add one child `GameObject` with your own `SpriteRenderer`.
 4. Animate that renderer from your own frame list in `OnUpdate`.
 5. Leave the cloned `Steed` components, colliders, movement, stamina, deer
@@ -580,6 +582,35 @@ overlay path:
 
 This is the path used by `examples/GloamHart`. It keeps the mount mechanically
 vanilla-compatible while making the visible mount fully custom.
+
+> **Do not disable every `SpriteRenderer` on the clone.** The `Steed` prefab
+> also hosts the mounted **ruler (monarch)** and crown sprites as child
+> GameObjects — they live under `riderAnchor`, in the `_riderObjectPairs`
+> `Dictionary<MonarchType, GameObject>`, and in the `_crowns` list. A naive
+> `steed.GetComponentsInChildren<SpriteRenderer>(true)` loop that sets
+> `renderer.enabled = false` on everything will make the monarch **and** their
+> crown invisible the moment they mount, because the game renders the rider
+> through those same (now-disabled) renderers. Collect the ruler/crown renderers
+> first and skip them, disabling only the steed's own body renderers:
+>
+> ```csharp
+> // Renderers the mounted ruler and crowns use — never disable these.
+> var keep = new HashSet<System.IntPtr>();
+> foreach (var r in CollectRulerRenderers(steed)) // riderAnchor + _riderObjectPairs + _crowns
+>     if (r != null && r.Pointer != System.IntPtr.Zero) keep.Add(r.Pointer);
+>
+> foreach (var renderer in steed.GetComponentsInChildren<SpriteRenderer>(true))
+> {
+>     if (renderer == null) continue;
+>     if (renderer.Pointer != System.IntPtr.Zero && keep.Contains(renderer.Pointer))
+>         continue; // ruler/crown renderer — leave enabled
+>     renderer.enabled = false; // steed body renderer — hidden behind the overlay
+> }
+> ```
+>
+> See `AttachVisual` / `CollectRulerRenderers` in
+> [`examples/GloamHart/GloamHartMod.cs`](../examples/GloamHart/GloamHartMod.cs)
+> for the full, defensive version.
 
 ## Complete Skeleton Mod
 
@@ -717,6 +748,7 @@ above.
 | Problem | Likely cause | Fix |
 |---|---|---|
 | Mount vanishes or pulls the original scene mount with it | You used a live scene mount as the source | Use a prefab where `scene.handle == 0`, instantiate it, then ride the clone. |
+| Monarch (and crown) turn invisible once mounted | You disabled every child `SpriteRenderer` on the clone, including the rider/crown renderers the `Steed` hosts | Disable only the steed's body renderers; skip renderers under `riderAnchor`, `_riderObjectPairs`, and `_crowns` (see the overlay-path warning above). |
 | Art appears offset | Pivot, transparent padding, or child transform mismatch | Match original frame size/padding and copy the original sprite pivot/PPU. |
 | Art is too large or too small | Wrong `pixelsPerUnit` or image dimensions | Use the original sprite's `pixelsPerUnit`; start with matching dimensions. |
 | Mount changes back to vanilla while moving | Animator assigned unreplaced frames | Replace all animation frames or reapply in/after animation paths. |
