@@ -24,7 +24,6 @@ namespace KingdomMod.Loader.Console
         private bool _positioned;
         private Vector2 _scroll;
         private Vector2 _mountScroll;
-        private Vector2 _customMountScroll;
         private Vector2 _challengeScroll;
         private int _coinsAmount = 10;
         private int _gemsAmount = 1;
@@ -32,7 +31,8 @@ namespace KingdomMod.Loader.Console
         private int _giftTarget;
         private bool _showMounts;
         private bool _showCustomMounts;
-        private bool _showCustomChallenges;
+        private bool _showChallenges = true;   // challenge list shown by default
+        private bool _challengesLoaded;
         private GUIStyle _boldLabel;
         private GUIStyle _titleLabel;
         private GUIStyle _subLabel;
@@ -47,7 +47,7 @@ namespace KingdomMod.Loader.Console
         // KTC's UI doesn't already paint gameplay. We position lazily on first
         // open so we have the actual Screen dimensions; once the user drags
         // the window we keep their position across toggles.
-        private const float WindowHeight = 296f;       // ~30% shorter top edge (was 423)
+        private const float WindowHeight = 266f;       // 10% shorter top edge (was 296)
         private const float WindowBottomMargin = 24f;
 
         // Cursor state captured when the console opens, restored when it closes.
@@ -278,44 +278,43 @@ namespace KingdomMod.Loader.Console
             DrawPowerRows();
             GUILayout.EndVertical();
 
+            GUILayout.Space(12);
+
+            // Challenges: its own column to the right of Powers, always listing the
+            // imported designs (no show/hide button).
+            GUILayout.BeginVertical(GUILayout.Width(360));
+            DrawChallengeColumn();
+            GUILayout.EndVertical();
+
             GUILayout.EndHorizontal();
             GUILayout.Space(8);
 
-            if (_showMounts || _showCustomMounts || _showCustomChallenges)
-            {
-                if (_showCustomChallenges) DrawChallengeSection();
-                else DrawMountSection();
-            }
-            else
-            {
-                // Mount + Log row.
-                GUILayout.BeginHorizontal();
+            // Bottom: mount/custom picker on the left, Log on the right. The picker
+            // lives in a fixed-height region (DrawMountSection), so showing/hiding
+            // mounts or custom mounts never changes the F1 window height.
+            GUILayout.BeginHorizontal();
 
-                // Left: Mount + challenge sections.
-                GUILayout.BeginVertical(GUILayout.Width(_window.width * 0.55f));
-                DrawMountSection();
-                GUILayout.Space(4);
-                DrawChallengeSection();
-                GUILayout.EndVertical();
+            GUILayout.BeginVertical(GUILayout.Width(_window.width * 0.55f));
+            DrawMountSection();
+            GUILayout.EndVertical();
 
-                GUILayout.Space(12);
+            GUILayout.Space(12);
 
-                // Right: Log. The extended runtime-logging level lives inline with
-                // the Log title (no separate section).
-                GUILayout.BeginVertical();
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Log", _titleLabel, GUILayout.Width(40));
-                GUILayout.Label(new GUIContent("<u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel, GUILayout.Width(70));
-                DrawRuntimeLoggingRadio();
-                GUILayout.FlexibleSpace();
-                GUILayout.EndHorizontal();
-                _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(96));
-                for (int i = _log.Count - 1; i >= 0; i--) GUILayout.Label(_log[i]);
-                GUILayout.EndScrollView();
-                GUILayout.EndVertical();
+            // Right: Log. The extended runtime-logging level lives inline with the
+            // Log title (no separate section).
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Log", _titleLabel, GUILayout.Width(40));
+            GUILayout.Label(new GUIContent("<u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel, GUILayout.Width(70));
+            DrawRuntimeLoggingRadio();
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(84));
+            for (int i = _log.Count - 1; i >= 0; i--) GUILayout.Label(_log[i]);
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
 
-                GUILayout.EndHorizontal();
-            }
+            GUILayout.EndHorizontal();
 
             DrawShortcutsGuide();
 
@@ -863,7 +862,6 @@ namespace KingdomMod.Loader.Console
             {
                 _showMounts = !_showMounts;
                 if (_showMounts) _showCustomMounts = false;
-                if (_showMounts) _showCustomChallenges = false;
                 if (_showMounts) RebuildMountOptions();
             }
             if (GUILayout.Button(new GUIContent(_showCustomMounts ? "Custom [hide]" : "Custom [show]",
@@ -871,136 +869,115 @@ namespace KingdomMod.Loader.Console
             {
                 _showCustomMounts = !_showCustomMounts;
                 if (_showCustomMounts) _showMounts = false;
-                if (_showCustomMounts) _showCustomChallenges = false;
             }
-            if (_showMounts || _showCustomMounts)
+            GUILayout.Space(8);
+            GUILayout.Label(new GUIContent("Target:", "Which player the chosen mount is given to."), GUILayout.Width(50));
+            if (GUILayout.Toggle(_mountTarget == 0, new GUIContent("P1", "Give the mount to Player 1."), "Button", GUILayout.Width(36))) _mountTarget = 0;
+            if (GUILayout.Toggle(_mountTarget == 1, new GUIContent("P2", "Give the mount to Player 2."), "Button", GUILayout.Width(36))) _mountTarget = 1;
+            if (_showMounts)
             {
                 GUILayout.Space(8);
-                GUILayout.Label(new GUIContent("Target:", "Which player the chosen mount is given to."), GUILayout.Width(50));
-                if (GUILayout.Toggle(_mountTarget == 0, new GUIContent("P1", "Give the mount to Player 1."), "Button", GUILayout.Width(36))) _mountTarget = 0;
-                if (GUILayout.Toggle(_mountTarget == 1, new GUIContent("P2", "Give the mount to Player 2."), "Button", GUILayout.Width(36))) _mountTarget = 1;
-                if (_showMounts)
-                {
-                    GUILayout.Space(8);
-                    if (GUILayout.Button(new GUIContent("Refresh", "Rescan the build for available mount prefabs."), GUILayout.Width(70))) RebuildMountOptions();
-                }
+                if (GUILayout.Button(new GUIContent("Refresh", "Rescan the build for available mount prefabs."), GUILayout.Width(70))) RebuildMountOptions();
             }
-            else
-            {
-                GUILayout.Label("Swap a player's mount at any time, or open custom mounts registered by mods.");
-            }
+            GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
 
+            // Fixed-height picker region: showing mounts or custom mounts fills this
+            // same area instead of growing the window. Sized to match the Log
+            // beside it so the bottom row stays compact.
+            _mountScroll = GUILayout.BeginScrollView(_mountScroll, GUILayout.Height(84));
             if (_showCustomMounts)
-            {
-                DrawCustomMounts();
-                return;
-            }
-
-            if (!_showMounts) return;
-
-            _mountScroll = GUILayout.BeginScrollView(_mountScroll, GUILayout.Height(138));
-            if (_mountOptions.Count == 0)
-            {
-                GUILayout.Label("(No mounts loaded yet - enter a run, then Refresh.)");
-            }
+                DrawCustomMountRows();
+            else if (_showMounts)
+                DrawMountRows();
             else
-            {
-                for (int i = 0; i < _mountOptions.Count; i += 2)
-                {
-                    GUILayout.BeginHorizontal();
-                    DrawMountButton(_mountOptions[i]);
-                    if (i + 1 < _mountOptions.Count) DrawMountButton(_mountOptions[i + 1]);
-                    else GUILayout.FlexibleSpace();
-                    GUILayout.EndHorizontal();
-                }
-            }
+                GUILayout.Label("Swap a player's mount at any time (Mount), or open custom mounts registered by mods (Custom).");
             GUILayout.EndScrollView();
         }
 
-        private void DrawChallengeSection()
+        private void DrawMountRows()
+        {
+            if (_mountOptions.Count == 0)
+            {
+                GUILayout.Label("(No mounts loaded yet - enter a run, then Refresh.)");
+                return;
+            }
+            for (int i = 0; i < _mountOptions.Count; i += 2)
+            {
+                GUILayout.BeginHorizontal();
+                DrawMountButton(_mountOptions[i]);
+                if (i + 1 < _mountOptions.Count) DrawMountButton(_mountOptions[i + 1]);
+                else GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+            }
+        }
+
+        // Challenges category (own column, right of Powers). A single Show/Hide
+        // button (Show by default); when shown, lists the imported designs.
+        private void DrawChallengeColumn()
         {
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button(new GUIContent(_showCustomChallenges ? "Challenges [hide]" : "Challenges [show]",
-                    "Show/hide custom challenge and island designs imported from UserData/KingdomMod/custom-challenges."), GUILayout.Width(140)))
+            GUILayout.Label(new GUIContent("Challenges",
+                "Custom challenge & island designs imported from UserData/KingdomMod/custom-challenges."),
+                _titleLabel, GUILayout.Width(96));
+            if (GUILayout.Button(new GUIContent(_showChallenges ? "Hide" : "Show",
+                    "Show/hide the imported custom challenge and island designs."), GUILayout.Width(70)))
             {
-                _showCustomChallenges = !_showCustomChallenges;
-                if (_showCustomChallenges)
-                {
-                    _showMounts = false;
-                    _showCustomMounts = false;
-                    CustomChallengeManager.Instance.Refresh(Log);
-                }
-            }
-
-            if (_showCustomChallenges)
-            {
-                if (GUILayout.Button(new GUIContent("Refresh", "Reload custom challenge JSON files from the import folder."), GUILayout.Width(70)))
-                    CustomChallengeManager.Instance.Refresh(Log);
-                if (GUILayout.Button(new GUIContent("Clear", "Clear the active custom challenge override and return to vanilla challenges."), GUILayout.Width(60)))
-                    CustomChallengeManager.Instance.Clear(Log);
-                GUILayout.Label(new GUIContent("Folder: " + CustomChallengeManager.Instance.Folder,
-                    "The asset designer exports custom challenge JSON into this folder."), GUILayout.ExpandWidth(true));
-            }
-            else
-            {
-                var active = CustomChallengeManager.Instance.ActiveName;
-                string text = string.IsNullOrEmpty(active)
-                    ? "Import challenge/island JSON from the asset designer, then apply it here."
-                    : "Active custom challenge: " + active;
-                GUILayout.Label(text);
+                _showChallenges = !_showChallenges;
+                if (_showChallenges) CustomChallengeManager.Instance.Refresh(Log);
             }
             GUILayout.EndHorizontal();
 
-            if (!_showCustomChallenges) return;
+            if (!_showChallenges) return;
+
+            // Shown by default, so load the imported designs once on first draw.
+            if (!_challengesLoaded)
+            {
+                _challengesLoaded = true;
+                CustomChallengeManager.Instance.Refresh(Log);
+            }
+
+            var active = CustomChallengeManager.Instance.ActiveName;
+            if (!string.IsNullOrEmpty(active))
+                GUILayout.Label(new GUIContent("Active: " + active, "The currently applied custom challenge override."));
 
             var designs = CustomChallengeManager.Instance.Designs;
-            _challengeScroll = GUILayout.BeginScrollView(_challengeScroll, GUILayout.Height(138));
+            _challengeScroll = GUILayout.BeginScrollView(_challengeScroll, GUILayout.Height(122));
             if (designs.Count == 0)
             {
-                GUILayout.Label("(No custom challenge JSON files imported yet.)");
+                GUILayout.Label("(No custom challenge JSON imported.\nExport from the asset designer.)");
             }
             else
             {
                 for (int i = 0; i < designs.Count; i++)
                 {
                     var design = designs[i];
-                    GUILayout.BeginHorizontal();
                     var tooltip = string.IsNullOrEmpty(design.Description)
-                        ? "Apply this custom challenge override."
+                        ? $"{design.Islands.Count} island(s), base: {design.BaseChallenge ?? design.BaseChallengeType ?? "(auto)"}. Click to apply."
                         : design.Description;
-                    if (GUILayout.Button(new GUIContent(design.Name, tooltip), GUILayout.Height(30), GUILayout.Width((_window.width - 32f) * 0.34f)))
+                    if (GUILayout.Button(new GUIContent(design.Name, tooltip), GUILayout.Height(28), GUILayout.Width(336)))
                         CustomChallengeManager.Instance.Apply(i, Log);
-
-                    GUILayout.Label(new GUIContent(
-                        $"{design.Islands.Count} island(s)  base: {design.BaseChallenge ?? design.BaseChallengeType ?? "(auto)"}",
-                        design.SourcePath ?? ""), GUILayout.Height(30));
-                    GUILayout.EndHorizontal();
                 }
             }
             GUILayout.EndScrollView();
         }
 
-        private void DrawCustomMounts()
+        private void DrawCustomMountRows()
         {
             var customMounts = Kingdom.CustomMounts.Mounts;
-            _customMountScroll = GUILayout.BeginScrollView(_customMountScroll, GUILayout.Height(138));
             if (customMounts.Count == 0)
             {
                 GUILayout.Label("(No custom mounts registered yet.)");
+                return;
             }
-            else
+            for (int i = 0; i < customMounts.Count; i += 2)
             {
-                for (int i = 0; i < customMounts.Count; i += 2)
-                {
-                    GUILayout.BeginHorizontal();
-                    DrawCustomMountButton(customMounts[i]);
-                    if (i + 1 < customMounts.Count) DrawCustomMountButton(customMounts[i + 1]);
-                    else GUILayout.FlexibleSpace();
-                    GUILayout.EndHorizontal();
-                }
+                GUILayout.BeginHorizontal();
+                DrawCustomMountButton(customMounts[i]);
+                if (i + 1 < customMounts.Count) DrawCustomMountButton(customMounts[i + 1]);
+                else GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
             }
-            GUILayout.EndScrollView();
         }
 
         private void DrawCustomMountButton(CustomMountDefinition definition)

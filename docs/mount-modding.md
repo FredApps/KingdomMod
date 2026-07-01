@@ -514,6 +514,18 @@ load each PNG stream into a `Texture2D`, then create `Sprite` objects with the
 same rules as pack sprites: point filtering, clamp wrapping, a stable
 pixels-per-unit value, and a pivot that keeps the mount grounded.
 
+> **Mark runtime textures and sprites `HideFlags.HideAndDontSave`.** A mod loads
+> its sprites in the boot scene, but the mount is created later, after the scene
+> load into a run. Unity destroys ordinary runtime-created `Texture2D`/`Sprite`
+> objects on that scene transition, so your frame lookup returns `null` and the
+> mount renders nothing even though loading logged the right count. Set the flag
+> right after creating each object so it survives the whole session:
+>
+> ```csharp
+> texture.hideFlags = HideFlags.HideAndDontSave;
+> sprite.hideFlags  = HideFlags.HideAndDontSave;
+> ```
+
 Gloam Hart uses 32 frames:
 
 | Animation | Frames |
@@ -781,6 +793,9 @@ above.
 | Mount vanishes or pulls the original scene mount with it | You used a live scene mount as the source | Use a prefab where `scene.handle == 0`, instantiate it, then ride the clone. |
 | Monarch (and crown) turn invisible once mounted | You disabled every child `SpriteRenderer` on the clone, including the rider/crown renderers the `Steed` hosts | Disable only the steed's body renderers; skip renderers under `riderAnchor`, `_riderObjectPairs`, and `_crowns` (see the overlay-path warning above). |
 | Custom overlay sprite is invisible | Your new `SpriteRenderer` got the default material and/or the default sorting layer (the reference body sprite was null at instantiation, so a `sprite != null` scan found nothing) | Resolve the body renderer via `Steed.SpriteFX` and copy `sharedMaterial` + `sortingLayerID` + `sortingOrder` + transform onto the overlay (see the render-context warning above). |
+| Frames load at startup but the mount renders nothing later | Runtime `Texture2D`/`Sprite` objects were destroyed on the scene load into the run, so the frame lookup returns `null` | Set `hideFlags = HideFlags.HideAndDontSave` on every generated texture and sprite (see the embedded-sprites note). |
+| Mount is far too big or small | Wrong `pixelsPerUnit` for the source frame size | Pick PPU = frameHeightPx / desiredWorldHeight (e.g. 64px art at ~2 units → PPU 32). |
+| Mount does not turn with the monarch | You flipped only from the mount's own movement, so it never turns while standing | Mirror the rider's on-screen facing (largest active sprite under `Steed.riderAnchor`, combining `flipX` with transform-scale sign). |
 | Art appears offset | Pivot, transparent padding, or child transform mismatch | Match original frame size/padding and copy the original sprite pivot/PPU. |
 | Art is too large or too small | Wrong `pixelsPerUnit` or image dimensions | Use the original sprite's `pixelsPerUnit`; start with matching dimensions. |
 | Mount changes back to vanilla while moving | Animator assigned unreplaced frames | Replace all animation frames or reapply in/after animation paths. |

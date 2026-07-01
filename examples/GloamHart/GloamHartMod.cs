@@ -14,7 +14,9 @@ namespace KingdomMod.Examples.GloamHart
 {
     public sealed class GloamHartMod : MelonMod
     {
-        private const float PixelsPerUnit = 16f;
+        // 96x64 source frames. At 32 px/unit the mount is ~3.0 x 2.0 world units,
+        // in line with a vanilla steed (16 made it a ~6 x 4 giant).
+        private const float PixelsPerUnit = 32f;
         private static readonly Dictionary<string, Sprite[]> Frames = new();
         private static readonly Dictionary<IntPtr, GloamHartVisual> Visuals = new();
 
@@ -100,69 +102,78 @@ namespace KingdomMod.Examples.GloamHart
 
         private static void AttachVisual(Steed steed, Action<string> log)
         {
-            // The steed prefab renders the mounted ruler (monarch) and crowns
-            // through GameObjects parented under the steed itself (riderAnchor,
-            // _riderObjectPairs, _crowns). Those renderers must stay enabled, or
-            // the monarch turns invisible while riding. Only the steed's own body
-            // renderers get hidden so the custom overlay can replace them.
+            // Keep the mounted ruler (monarch) and crown renderers enabled — they
+            // live under the steed (riderAnchor, _riderObjectPairs, _crowns) and
+            // the monarch turns invisible if they are disabled.
             var keep = new HashSet<IntPtr>();
             CollectRulerRenderers(steed, keep);
 
-            // Resolve the steed's own body renderer up front. It carries the
-            // game's sprite material and the correct sorting layer/order, which
-            // the overlay must copy or it renders in the wrong material/layer
-            // context and stays invisible. Do NOT pick it by "first sprite != null":
-            // the body animator hasn't run yet, so that sprite is often null at
-            // instantiation.
-            SpriteRenderer reference = ResolveBodyRenderer(steed, keep);
+            // Drive the steed's OWN body renderer instead of bolting on a foreign
+            // SpriteRenderer. The body draws through the game's SpriteRendererFX
+            // custom shader (recolor / ambient / outline); a separate renderer
+            // using that material renders transparent, and one using the default
+            // material renders in the wrong sorting/lighting context — which is
+            // why an overlay stayed invisible. Reusing the real renderer inherits
+            // the correct material, sorting layer, and day/night ambient response,
+            // so the mount is guaranteed to render like any vanilla steed.
+            var body = ResolveBodyRenderer(steed, keep);
+            if (body == null)
+            {
+                log?.Invoke("Gloam Hart: no body renderer found; visual not attached.");
+                MelonLogger.Warning("[GloamHart] No body SpriteRenderer resolved on the cloned steed.");
+                return;
+            }
+            var bodyPtr = body.Pointer;
 
+            // Stop the animators that would otherwise overwrite our sprite each
+            // frame with vanilla stag/reindeer art.
+            DisableBodyAnimators(steed);
+
+            // Hide the steed's other body sub-renderers (extra parts / FX layers)
+            // so only our driven renderer shows; never touch ruler/crown renderers.
             foreach (var renderer in steed.GetComponentsInChildren<SpriteRenderer>(true))
             {
                 if (renderer == null) continue;
-                if (renderer.Pointer != IntPtr.Zero && keep.Contains(renderer.Pointer)) continue;
+                var ptr = renderer.Pointer;
+                if (ptr != IntPtr.Zero && (ptr == bodyPtr || keep.Contains(ptr))) continue;
                 renderer.enabled = false;
             }
 
-            var visualObject = new GameObject("GloamHartVisual");
-            // Parent under the body renderer's own parent so its local position
-            // and scale share the body's coordinate space; falling back to the
-            // steed root keeps a sane placement when no body renderer is found.
-            var anchor = reference != null ? reference.transform.parent : steed.transform;
-            visualObject.transform.SetParent(anchor != null ? anchor : steed.transform, false);
-            visualObject.transform.localPosition = reference != null
-                ? reference.transform.localPosition
-                : new Vector3(0f, 0.3f, 0f);
-            visualObject.transform.localScale = reference != null
-                ? reference.transform.localScale
-                : Vector3.one;
+            body.enabled = true;
+            body.sprite = Frame("idle", 0);
+            // Force the renderer fully opaque: the vanilla steed drives visibility
+            // through the FX component's alpha/fade, which we bypass, so the raw
+            // SpriteRenderer color alpha can sit at 0 and hide our sprite.
+            ForceOpaque(steed, body);
 
-            var renderer2 = visualObject.AddComponent<SpriteRenderer>();
-            renderer2.enabled = true;
-            renderer2.color = Color.white;
-            if (reference != null)
-            {
-                // Inherit the game's render context: same material (the custom
-                // sprite shader the whole scene draws through) and the same
-                // sorting layer, one order above the hidden body.
-                try { renderer2.sharedMaterial = reference.sharedMaterial; } catch { }
-                renderer2.sortingLayerID = reference.sortingLayerID;
-                renderer2.sortingOrder = reference.sortingOrder + 1;
-            }
-            else
-            {
-                // No body renderer resolved: render on top of the default layer
-                // instead of leaving the overlay at sortingOrder 0 behind terrain.
-                renderer2.sortingOrder = 100;
-            }
-
-            renderer2.sprite = Frame("idle", 0);
             var pointer = steed.Pointer;
             if (pointer != IntPtr.Zero)
-                Visuals[pointer] = new GloamHartVisual(steed, renderer2);
+                Visuals[pointer] = new GloamHartVisual(steed, body);
 
-            log?.Invoke(reference != null
-                ? "Gloam Hart: custom visual attached (inherited body material + sorting); ruler kept."
-                : "Gloam Hart: custom visual attached with fallback sorting; ruler kept.");
+            MelonLogger.Msg($"[GloamHart] Driving body renderer '{SafeName(body)}'; animators disabled.");
+            log?.Invoke("Gloam Hart: custom visual attached (driving body renderer; ruler kept).");
+        }
+
+        // The steed normally fades in via SpriteRendererFX.alpha and may leave the
+        // raw SpriteRenderer.color alpha at 0; force both opaque so our sprite shows.
+        private static void ForceOpaque(Steed steed, SpriteRenderer body)
+        {
+            try { var c = body.color; c.a = 1f; body.color = c; } catch { }
+            try { if (steed.SpriteFX != null) steed.SpriteFX.alpha = 1f; } catch { }
+        }
+
+        // Disable the animators that drive the steed body sprite so our per-frame
+        // sprite assignment is not overwritten. Movement/stamina are code-driven
+        // and unaffected; the ruler animation is a separate system.
+        private static void DisableBodyAnimators(Steed steed)
+        {
+            try { var a = steed.Animator; if (a != null) a.enabled = false; } catch { }
+            try { var a = steed.hierarchyAnimator; if (a != null) a.enabled = false; } catch { }
+        }
+
+        private static string SafeName(UnityEngine.Object o)
+        {
+            try { return o != null ? o.name : "(null)"; } catch { return "(err)"; }
         }
 
         // Resolve the steed's own body SpriteRenderer, independent of whether its
@@ -305,6 +316,11 @@ namespace KingdomMod.Examples.GloamHart
                 if (!ImageConversion.LoadImage(texture, ms.ToArray(), markNonReadable: false))
                     continue;
                 texture.name = "gloam_hart_" + file;
+                // Runtime-created textures/sprites are destroyed by Unity on the
+                // scene load into a run (this mod loads them in the boot scene),
+                // which left Frame() returning null by the time a mount was built.
+                // HideAndDontSave keeps them alive for the whole session.
+                texture.hideFlags = HideFlags.HideAndDontSave;
                 var sprite = Sprite.Create(
                     texture,
                     new Rect(0, 0, texture.width, texture.height),
@@ -313,6 +329,7 @@ namespace KingdomMod.Examples.GloamHart
                     0,
                     SpriteMeshType.FullRect);
                 sprite.name = "gloam_hart_" + file;
+                sprite.hideFlags = HideFlags.HideAndDontSave;
                 AddFrame(group, index, sprite);
             }
         }
@@ -379,15 +396,32 @@ namespace KingdomMod.Examples.GloamHart
                 if (!_steed.gameObject.activeInHierarchy)
                     return true;
 
+                // The ride / player-model setup path can re-enable the body
+                // animator after we attached; re-assert our control each frame so
+                // vanilla frames never bleed back in and our renderer stays on.
+                DisableBodyAnimators(_steed);
+                if (!_renderer.enabled) _renderer.enabled = true;
+                ForceOpaque(_steed, _renderer);
+
                 var dt = Mathf.Max(Time.deltaTime, 0.016f);
                 var pos = _steed.transform.position;
                 var dx = pos.x - _lastPosition.x;
                 var speed = Mathf.Abs(dx) / dt;
                 _lastPosition = pos;
 
-                if (dx > 0.01f) _facingLeft = false;
+                // Face the same way as the mounted monarch. Mirror the rider's
+                // actual on-screen facing (which the game may express via the
+                // sprite's flipX or a negative transform scale), so the mount
+                // turns with the monarch even while standing still. Fall back to
+                // our own horizontal movement when no rider sprite is found.
+                if (TryGetRiderFacingLeft(out var riderLeft))
+                    _facingLeft = riderLeft;
+                else if (dx > 0.01f) _facingLeft = false;
                 else if (dx < -0.01f) _facingLeft = true;
-                _renderer.flipX = _facingLeft;
+                // Combine with the mount renderer's own mirroring so the resulting
+                // on-screen facing matches, regardless of parent scale sign.
+                bool mountMirrored = _renderer.transform.lossyScale.x < 0f;
+                _renderer.flipX = _facingLeft ^ mountMirrored;
 
                 var next = ChooseState(speed, dt);
                 if (next != _state)
@@ -407,6 +441,32 @@ namespace KingdomMod.Examples.GloamHart
                     _renderer.sprite = Frame(_state, _frame);
                 }
                 return true;
+            }
+
+            // The monarch's on-screen facing, read from its largest active rider
+            // sprite under the steed's rider anchor. Combines flipX with transform
+            // mirroring so it is correct however the game expresses the flip.
+            private bool TryGetRiderFacingLeft(out bool facingLeft)
+            {
+                facingLeft = false;
+                try
+                {
+                    var anchor = _steed.riderAnchor;
+                    if (anchor == null) return false;
+                    SpriteRenderer best = null;
+                    float bestSize = 0f;
+                    // includeInactive: false -> only the active monarch's sprites.
+                    foreach (var r in anchor.GetComponentsInChildren<SpriteRenderer>(false))
+                    {
+                        if (r == null || r.sprite == null) continue;
+                        float sx = r.bounds.size.x; // body sprite is the largest
+                        if (sx > bestSize) { bestSize = sx; best = r; }
+                    }
+                    if (best == null) return false;
+                    facingLeft = best.flipX ^ (best.transform.lossyScale.x < 0f);
+                    return true;
+                }
+                catch { return false; }
             }
 
             private string ChooseState(float speed, float dt)
