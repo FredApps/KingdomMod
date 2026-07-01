@@ -133,6 +133,8 @@
     <SetProperty Id="INSTALLFOLDER" Action="SetInstallFolderFromSteamHklmDefault" Value="[STEAMINSTALLFOLDER_HKLM_RAW]\steamapps\common\Kingdom Two Crowns" Before="CostFinalize" Sequence="both" Condition="NOT INSTALLFOLDER AND STEAMDEFAULTKINGDOMTWOCROWNSFOLDER_HKLM AND NOT Installed" />
 
     <WixVariable Id="WixUILicenseRtf" Value="$(var.InstallerDir)\License.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.InstallerDir)\assets\WixUIBanner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.InstallerDir)\assets\WixUIDialog.bmp" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
     <UI>
