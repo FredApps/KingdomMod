@@ -727,9 +727,11 @@ namespace KingdomMod.Loader.Console
         private void DrawPowerRows()
         {
             GUILayout.Label(new GUIContent("Powers", "Persisted item-of-power and monarch powers for the selected player."), _titleLabel);
-            // Thor/Hel/Heimdal/Loki are Norse Lands items of power; they only load
-            // while playing the Norse Lands campaign, so hide the row elsewhere.
-            if (IsNorselandsBiome())
+            // Items of power are biome-specific: Thor/Hel/Heimdal/Loki load in the
+            // Norse Lands campaign, Hephaestus/Hermes/Artemis/Medusa in the Olympus
+            // (Greece) campaign. Show the row only where the current campaign has
+            // items, and let it list that campaign's set.
+            if (PowerSwitcher.BiomeHasItemsOfPower())
                 DrawItemPowerRow();
             // Dead Lands monarchs only load while playing the Dead Lands campaign;
             // hide the row in any other campaign.
@@ -738,8 +740,6 @@ namespace KingdomMod.Loader.Console
         }
 
         private static bool IsDeadlandsBiome() => SafeBiomeIndex() == BiomeHolder.DeadlandsBiomeIndex;
-
-        private static bool IsNorselandsBiome() => SafeBiomeIndex() == BiomeHolder.NorselandsBiomeIndex;
 
         private static int SafeBiomeIndex()
         {
@@ -758,14 +758,19 @@ namespace KingdomMod.Loader.Console
             var cur = loader != null && loader.HasPersistedItemPower(_giftTarget)
                 ? loader.GetPersistedItemPower(_giftTarget)
                 : (player != null ? player.equippedItemOfPower : ItemOfPower.ItemType.None);
+
+            // List the current campaign's items (Norse Lands or Olympus), always
+            // led by None. The item set is stable within a frame, so IMGUI control
+            // counts stay consistent between Layout and Repaint passes.
+            var items = PowerSwitcher.CurrentBiomeItems();
             GUILayout.BeginHorizontal();
             DrawItemPowerOption("None", ItemOfPower.ItemType.None, cur);
-            DrawItemPowerOption("Thor", ItemOfPower.ItemType.ThorItem, cur);
-            DrawItemPowerOption("Hel", ItemOfPower.ItemType.HelItem, cur);
+            if (items.Length > 0) DrawItemPowerOption(PowerSwitcher.ItemLabel(items[0]), items[0], cur);
+            if (items.Length > 1) DrawItemPowerOption(PowerSwitcher.ItemLabel(items[1]), items[1], cur);
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            DrawItemPowerOption("Heimdal", ItemOfPower.ItemType.HeimdalItem, cur);
-            DrawItemPowerOption("Loki", ItemOfPower.ItemType.LokiItem, cur);
+            if (items.Length > 2) DrawItemPowerOption(PowerSwitcher.ItemLabel(items[2]), items[2], cur);
+            if (items.Length > 3) DrawItemPowerOption(PowerSwitcher.ItemLabel(items[3]), items[3], cur);
             GUILayout.EndHorizontal();
         }
 

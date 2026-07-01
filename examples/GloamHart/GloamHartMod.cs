@@ -108,13 +108,18 @@ namespace KingdomMod.Examples.GloamHart
             var keep = new HashSet<IntPtr>();
             CollectRulerRenderers(steed, keep);
 
-            SpriteRenderer reference = null;
+            // Resolve the steed's own body renderer up front. It carries the
+            // game's sprite material and the correct sorting layer/order, which
+            // the overlay must copy or it renders in the wrong material/layer
+            // context and stays invisible. Do NOT pick it by "first sprite != null":
+            // the body animator hasn't run yet, so that sprite is often null at
+            // instantiation.
+            SpriteRenderer reference = ResolveBodyRenderer(steed, keep);
+
             foreach (var renderer in steed.GetComponentsInChildren<SpriteRenderer>(true))
             {
                 if (renderer == null) continue;
                 if (renderer.Pointer != IntPtr.Zero && keep.Contains(renderer.Pointer)) continue;
-                if (reference == null && renderer.sprite != null)
-                    reference = renderer;
                 renderer.enabled = false;
             }
 
@@ -127,11 +132,19 @@ namespace KingdomMod.Examples.GloamHart
             visualObject.transform.localPosition = reference != null
                 ? reference.transform.localPosition
                 : new Vector3(0f, 0.3f, 0f);
-            visualObject.transform.localScale = Vector3.one;
+            visualObject.transform.localScale = reference != null
+                ? reference.transform.localScale
+                : Vector3.one;
 
             var renderer2 = visualObject.AddComponent<SpriteRenderer>();
+            renderer2.enabled = true;
+            renderer2.color = Color.white;
             if (reference != null)
             {
+                // Inherit the game's render context: same material (the custom
+                // sprite shader the whole scene draws through) and the same
+                // sorting layer, one order above the hidden body.
+                try { renderer2.sharedMaterial = reference.sharedMaterial; } catch { }
                 renderer2.sortingLayerID = reference.sortingLayerID;
                 renderer2.sortingOrder = reference.sortingOrder + 1;
             }
@@ -147,7 +160,39 @@ namespace KingdomMod.Examples.GloamHart
             if (pointer != IntPtr.Zero)
                 Visuals[pointer] = new GloamHartVisual(steed, renderer2);
 
-            log?.Invoke("Gloam Hart: custom visual attached; vanilla body renderers hidden (ruler kept).");
+            log?.Invoke(reference != null
+                ? "Gloam Hart: custom visual attached (inherited body material + sorting); ruler kept."
+                : "Gloam Hart: custom visual attached with fallback sorting; ruler kept.");
+        }
+
+        // Resolve the steed's own body SpriteRenderer, independent of whether its
+        // sprite has been assigned yet. Prefer the typed SpriteFX renderer; fall
+        // back to the first non-ruler child renderer.
+        private static SpriteRenderer ResolveBodyRenderer(Steed steed, HashSet<IntPtr> keep)
+        {
+            try
+            {
+                var fx = steed.SpriteFX;
+                if (fx != null)
+                {
+                    var r = fx.GetComponent<SpriteRenderer>();
+                    if (r != null) return r;
+                }
+            }
+            catch { }
+
+            try
+            {
+                foreach (var renderer in steed.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    if (renderer == null) continue;
+                    if (renderer.Pointer != IntPtr.Zero && keep.Contains(renderer.Pointer)) continue;
+                    return renderer; // first steed-body renderer, sprite or not
+                }
+            }
+            catch { }
+
+            return null;
         }
 
         // Renderers that belong to the mounted ruler (monarch) and crowns, which

@@ -13,6 +13,49 @@ namespace KingdomMod.Loader.Console
             MonarchType.Miriam
         };
 
+        // Items of power are biome-specific: the Norse Lands set (Thor/Hel/
+        // Heimdal/Loki) only loads in the Norse Lands campaign, and the Olympus
+        // set (Hephaestus/Hermes/Artemis/Medusa) only loads in the Greece
+        // (Call of Olympus) campaign. Europe and Shogun have none.
+        private static readonly ItemOfPower.ItemType[] NorselandsItems =
+        {
+            ItemOfPower.ItemType.ThorItem,
+            ItemOfPower.ItemType.HelItem,
+            ItemOfPower.ItemType.HeimdalItem,
+            ItemOfPower.ItemType.LokiItem
+        };
+
+        private static readonly ItemOfPower.ItemType[] GreeceItems =
+        {
+            ItemOfPower.ItemType.HephaestusHammer,
+            ItemOfPower.ItemType.HermesStaff,
+            ItemOfPower.ItemType.ArtemisBow,
+            ItemOfPower.ItemType.MedusaShield
+        };
+
+        private static readonly ItemOfPower.ItemType[] NoItems = Array.Empty<ItemOfPower.ItemType>();
+
+        /// <summary>Items of power that load in the current campaign, or empty.</summary>
+        public static ItemOfPower.ItemType[] CurrentBiomeItems()
+        {
+            if (IsNorselandsBiome()) return NorselandsItems;
+            if (IsGreeceBiome()) return GreeceItems;
+            return NoItems;
+        }
+
+        /// <summary>True when the current campaign has switchable items of power.</summary>
+        public static bool BiomeHasItemsOfPower() => CurrentBiomeItems().Length > 0;
+
+        /// <summary>True when <paramref name="item"/> belongs to the current campaign (None always allowed).</summary>
+        public static bool ItemBelongsToCurrentBiome(ItemOfPower.ItemType item)
+        {
+            if (item == ItemOfPower.ItemType.None) return true;
+            var items = CurrentBiomeItems();
+            for (int i = 0; i < items.Length; i++)
+                if (items[i] == item) return true;
+            return false;
+        }
+
         public static void ApplyItemPower(Player player, int playerNumber, ItemOfPower.ItemType item, Action<string> log)
         {
             if (player == null)
@@ -21,9 +64,15 @@ namespace KingdomMod.Loader.Console
                 return;
             }
 
-            if (!IsNorselandsBiome())
+            if (!BiomeHasItemsOfPower())
             {
-                log($"Player {playerNumber}: items of power only load while playing the Norse Lands campaign.");
+                log($"Player {playerNumber}: items of power only load while playing the Norse Lands or Olympus campaign.");
+                return;
+            }
+
+            if (!ItemBelongsToCurrentBiome(item))
+            {
+                log($"Player {playerNumber}: {ItemLabel(item)} does not load in this campaign.");
                 return;
             }
 
@@ -93,10 +142,13 @@ namespace KingdomMod.Loader.Console
 
                 try
                 {
-                    if (loader.HasPersistedItemPower(playerId) && IsNorselandsBiome())
+                    if (loader.HasPersistedItemPower(playerId))
                     {
                         var item = loader.GetPersistedItemPower(playerId);
-                        if (p.equippedItemOfPower != item)
+                        // Only reapply when the saved item actually loads in the
+                        // current campaign, so a Norse item can't bleed into
+                        // Olympus (or vice versa).
+                        if (ItemBelongsToCurrentBiome(item) && p.equippedItemOfPower != item)
                         {
                             p.equippedItemOfPower = item;
                             RefreshPlayer(p);
@@ -134,6 +186,10 @@ namespace KingdomMod.Loader.Console
                 ItemOfPower.ItemType.HelItem => "Hel",
                 ItemOfPower.ItemType.HeimdalItem => "Heimdal",
                 ItemOfPower.ItemType.LokiItem => "Loki",
+                ItemOfPower.ItemType.HephaestusHammer => "Hephaestus",
+                ItemOfPower.ItemType.HermesStaff => "Hermes",
+                ItemOfPower.ItemType.ArtemisBow => "Artemis",
+                ItemOfPower.ItemType.MedusaShield => "Medusa",
                 _ => item.ToString()
             };
         }
@@ -155,6 +211,8 @@ namespace KingdomMod.Loader.Console
         public static bool IsDeadlandsBiome() => IsBiome(BiomeHolder.DeadlandsBiomeIndex);
 
         public static bool IsNorselandsBiome() => IsBiome(BiomeHolder.NorselandsBiomeIndex);
+
+        public static bool IsGreeceBiome() => IsBiome(BiomeHolder.GreeceBiomeIndex);
 
         private static bool IsBiome(int biomeIndex)
         {

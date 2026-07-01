@@ -574,8 +574,10 @@ overlay path:
 
 1. Clone the closest base `Steed` prefab.
 2. Disable the clone's **body** `SpriteRenderer`s only — **not every child
-   renderer**. See the warning below.
-3. Add one child `GameObject` with your own `SpriteRenderer`.
+   renderer**. See the ruler warning below.
+3. Add one child `GameObject` with your own `SpriteRenderer`, and copy the body
+   renderer's **material and sorting** onto it. See the render-context warning
+   below.
 4. Animate that renderer from your own frame list in `OnUpdate`.
 5. Leave the cloned `Steed` components, colliders, movement, stamina, deer
    attraction, and ability behavior intact.
@@ -611,6 +613,35 @@ vanilla-compatible while making the visible mount fully custom.
 > See `AttachVisual` / `CollectRulerRenderers` in
 > [`examples/GloamHart/GloamHartMod.cs`](../examples/GloamHart/GloamHartMod.cs)
 > for the full, defensive version.
+
+> **Give your overlay renderer the game's render context, or it draws
+> invisibly.** A bare `gameObject.AddComponent<SpriteRenderer>()` gets Unity's
+> default sprite material and the **default sorting layer** at order 0 — the
+> wrong layer/material for this game, so the sprite never appears. Resolve the
+> steed's own body renderer and copy its context. Resolve it via the typed
+> `Steed.SpriteFX` (a `SpriteRendererFX` wrapping the body `SpriteRenderer`),
+> **not** by scanning for the first child renderer whose `sprite != null`: the
+> body animator has not run its first frame when you clone the prefab, so that
+> sprite is usually null and your scan finds nothing.
+>
+> ```csharp
+> // Body renderer, resolved even before the animator assigns a sprite.
+> SpriteRenderer body = steed.SpriteFX != null
+>     ? steed.SpriteFX.GetComponent<SpriteRenderer>()
+>     : null; // fall back to the first non-ruler child renderer if null
+>
+> var overlay = visualObject.AddComponent<SpriteRenderer>();
+> overlay.enabled = true;
+> overlay.color = Color.white;
+> if (body != null)
+> {
+>     overlay.sharedMaterial = body.sharedMaterial;   // the scene's sprite shader
+>     overlay.sortingLayerID = body.sortingLayerID;   // same sorting layer
+>     overlay.sortingOrder   = body.sortingOrder + 1; // just above the hidden body
+>     // Parent under body.transform.parent and copy its localPosition/localScale
+>     // so the overlay lands exactly where the body did.
+> }
+> ```
 
 ## Complete Skeleton Mod
 
@@ -749,6 +780,7 @@ above.
 |---|---|---|
 | Mount vanishes or pulls the original scene mount with it | You used a live scene mount as the source | Use a prefab where `scene.handle == 0`, instantiate it, then ride the clone. |
 | Monarch (and crown) turn invisible once mounted | You disabled every child `SpriteRenderer` on the clone, including the rider/crown renderers the `Steed` hosts | Disable only the steed's body renderers; skip renderers under `riderAnchor`, `_riderObjectPairs`, and `_crowns` (see the overlay-path warning above). |
+| Custom overlay sprite is invisible | Your new `SpriteRenderer` got the default material and/or the default sorting layer (the reference body sprite was null at instantiation, so a `sprite != null` scan found nothing) | Resolve the body renderer via `Steed.SpriteFX` and copy `sharedMaterial` + `sortingLayerID` + `sortingOrder` + transform onto the overlay (see the render-context warning above). |
 | Art appears offset | Pivot, transparent padding, or child transform mismatch | Match original frame size/padding and copy the original sprite pivot/PPU. |
 | Art is too large or too small | Wrong `pixelsPerUnit` or image dimensions | Use the original sprite's `pixelsPerUnit`; start with matching dimensions. |
 | Mount changes back to vanilla while moving | Animator assigned unreplaced frames | Replace all animation frames or reapply in/after animation paths. |
