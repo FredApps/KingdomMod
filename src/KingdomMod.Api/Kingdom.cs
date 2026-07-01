@@ -37,6 +37,9 @@ namespace KingdomMod
         /// <summary>Registry of mod-published runtime toggles surfaced in the F1 console.</summary>
         public static ModsApi Mods => ModsApi.Instance;
 
+        /// <summary>Registry of custom mounts surfaced in the F1 console.</summary>
+        public static CustomMountsApi CustomMounts => CustomMountsApi.Instance;
+
         /// <summary>True if the core <c>Managers</c> singleton is initialised.</summary>
         public static bool IsReady => GameRefs.HasManagers;
     }

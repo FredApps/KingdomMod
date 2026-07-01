@@ -1,0 +1,1 @@
+"""KingdomMod local asset designer."""

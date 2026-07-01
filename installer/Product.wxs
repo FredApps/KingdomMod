@@ -11,8 +11,10 @@
       AllowSameVersionUpgrades="yes"
       DowngradeErrorMessage="A newer version of KingdomMod is already installed." />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="KingdomModIcon" SourceFile="$(var.InstallerDir)\assets\KingdomMod.ico" />
 
     <Property Id="DEFENDEREXCLUSIONACCEPTED" Secure="yes" />
+    <Property Id="ARPPRODUCTICON" Value="KingdomModIcon" />
 
     <Property Id="PREVIOUSKINGDOMMODINSTALLFOLDER_RAW" Secure="yes">
       <RegistrySearch

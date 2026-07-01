@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "name": "Gloam Hart",
+  "description": "A luminous forest hart with mothlike antlers.",
+  "frame": {
+    "width": 96,
+    "height": 64,
+    "pixelsPerUnit": 16,
+    "pivot": [0.5, 0.2]
+  },
+  "animations": {
+    "idle": 6,
+    "walk": 8,
+    "run": 8,
+    "eat": 4,
+    "rear": 3,
+    "tired": 3
+  },
+  "palette": {
+    "outline": "#141926ff",
+    "shadow": "#242e3aff",
+    "coat": "#3e535fff",
+    "highlight": "#7daeb2ff",
+    "chest": "#31414dff",
+    "glow": "#91e9e6e6",
+    "antler": "#c0e7d9ff",
+    "hoof": "#0e1015ff",
+    "aura": "#48b2cd22"
+  },
+  "body": {
+    "x": 54,
+    "y": 35,
+    "width": 36,
+    "height": 17,
+    "bob": 1.5,
+    "headX": 77,
+    "headY": 27,
+    "neckRaise": 0,
+    "legAmp": 3.0,
+    "tailLength": 10,
+    "glowMarks": [45, 53, 61],
+    "antlerScale": 1.0
+  },
+  "motion": {
+    "walkLegAmp": 3.5,
+    "runBobScale": 1.8,
+    "runLegAmp": 5.0,
+    "runSpeedAmp": 1.7,
+    "eatHeadY": 40,
+    "rearLift": 2,
+    "tiredBodyY": 38
+  },
+  "export": {
+    "frames": "examples/GloamHart/assets/gloam_hart"
+  }
+}

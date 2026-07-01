@@ -4,7 +4,7 @@ A community modding platform for **Kingdom Two Crowns** on Windows.
 
 KingdomMod provides a MelonLoader-based runtime, a small C# SDK, an in-game F1
 console, and example mods for balance tweaks, UI overlays, hotkeys, mounts,
-tree behavior, and sprite replacement.
+tree behavior, sprite replacement, and custom challenge/island recipes.
 
 [![Join the KingdomMod Discord](https://img.shields.io/badge/Discord-Join%20the%20modding%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/VpuCg6Hcrs)
 
@@ -90,6 +90,7 @@ breakdown and limits.
 | [HudOverlay](examples/HudOverlay) | 3 | Day, phase, season, clock, and next Director events overlay | F2 |
 | [SpeedHotkeys](examples/SpeedHotkeys) | 3 | Speed down, reset, speed up, and freeze | F5 / F6 / F7 / F8 |
 | [AnyMount](examples/AnyMount) | 5 | Per-player mount selector using the game's own mount swap path | F4 |
+| [GloamHart](examples/GloamHart) | 5 | Complete custom mount with generated sprites and the F1 Custom Mounts menu | F1 |
 | [AnyTrees](examples/AnyTrees) | 5 | Builder cowardice, builder speed, and Guerilla Warfare F1 controls | F1 |
 | [ChallengeDumper](examples/ChallengeDumper) | Tools | Dump loaded runtime game data to JSON | F3 |
 | [SandboxConsole](examples/SandboxConsole) | Tools | Dev console, game-state events, and sandbox hooks | F1 |
@@ -107,6 +108,9 @@ It includes:
 - Fixes: loader-owned safety fixes such as crown pickup and boar vanish repair.
 - Logging: current-session runtime diagnostics written to JSONL when enabled.
 - Mod options: controls registered by loaded mods through `Kingdom.Mods`.
+- Custom Mounts: mod-registered mounts through `Kingdom.CustomMounts`.
+- Custom Challenges: JSON challenge/island recipes imported from
+  `UserData/KingdomMod/custom-challenges`.
 - Shortcuts: F-key help generated only from the mods currently loaded.
 - Tooltips and log output for quick in-game feedback.
 
@@ -126,8 +130,26 @@ but you must ship only your own art.
 
 For custom mounts, see [Mount modding guide](docs/mount-modding.md). It covers
 choosing a base mount, changing `Steed` fields, swapping through `Player.Ride`,
-replacing mount sprites and animation frames, packaging user-supplied art, and
-runtime behavior such as the AnyMount `Perverted deers` toggle.
+replacing mount sprites and animation frames, registering mounts in the F1
+Custom Mounts menu, packaging user-supplied art, and runtime behavior such as
+the AnyMount `Perverted deers` toggle.
+
+For custom challenge and island recipes, see
+[Custom Challenges And Islands](docs/custom-challenges.md). It covers the F3
+dump -> asset designer -> F1 import workflow, supported `ChallengeData` /
+`LevelConfig` fields, and current limits.
+
+To design complete custom mount sprite sets or challenge/island recipes, run
+the local asset designer:
+
+```powershell
+tools\asset-designer.ps1
+```
+
+It creates a private `build/asset-designer/` workspace, can extract local game
+reference images for comparison, previews mount animations in a browser,
+exports PNG frames for custom mount mods, and exports custom challenge JSON into
+the F1 import folder. Extracted references stay local and must not be shipped.
 
 ## Safety
 

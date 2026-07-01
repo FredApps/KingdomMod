@@ -1,0 +1,217 @@
+:root {
+  color-scheme: dark;
+  --bg: #101417;
+  --panel: #1a2127;
+  --panel2: #202a31;
+  --line: #34434d;
+  --text: #e8eef0;
+  --muted: #a9b8bf;
+  --accent: #72d6cb;
+  --accent2: #e2d17c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.35 Segoe UI, system-ui, sans-serif;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #151b20;
+}
+h1, h2, p { margin: 0; }
+h1 { font-size: 20px; }
+h2 { margin: 12px 0 8px; font-size: 14px; color: var(--accent2); }
+#subtitle, .note, #status { color: var(--muted); }
+
+.actions { display: flex; gap: 8px; }
+.actions.inline { margin: 8px 0; }
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #12181c;
+}
+.tabs button.active {
+  border-color: var(--accent);
+  background: #1c4846;
+}
+button {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.primary {
+  border-color: #3c887f;
+  background: #1f625c;
+}
+button:hover { border-color: var(--accent); }
+
+.layout {
+  display: grid;
+  grid-template-columns: 340px minmax(420px, 1fr) 360px;
+  gap: 12px;
+  padding: 12px;
+}
+.challengeLayout {
+  display: grid;
+  grid-template-columns: 380px minmax(420px, 1fr) 420px;
+  gap: 12px;
+  padding: 12px;
+}
+.hidden { display: none; }
+.panel {
+  min-height: calc(100vh - 86px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+.checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.checks input {
+  width: auto;
+}
+input, select, textarea {
+  width: 100%;
+  background: #0f1418;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px;
+}
+input[type="color"] {
+  min-height: 34px;
+  padding: 2px;
+}
+input[type="range"] {
+  padding: 0;
+}
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.palette {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stage {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  margin: 8px 0 10px;
+  background-color: #0d1013;
+  background-image:
+    linear-gradient(45deg, #151b20 25%, transparent 25%),
+    linear-gradient(-45deg, #151b20 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #151b20 75%),
+    linear-gradient(-45deg, transparent 75%, #151b20 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+#previewFrame {
+  width: 384px;
+  image-rendering: pixelated;
+}
+.filmstrip, .references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+}
+.filmstrip img, .references img {
+  image-rendering: pixelated;
+  background: #0d1013;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px;
+}
+.filmstrip img {
+  width: 96px;
+  cursor: pointer;
+}
+.references {
+  max-height: 280px;
+  overflow: auto;
+}
+.references img {
+  max-width: 96px;
+  max-height: 96px;
+}
+
+#jsonEditor {
+  height: 520px;
+  font: 12px/1.35 Consolas, monospace;
+}
+#challengeDescription {
+  height: 70px;
+}
+#challengeJsonEditor {
+  height: 520px;
+  font: 12px/1.35 Consolas, monospace;
+}
+#exportLog {
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+#challengeExportLog {
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+.summary {
+  display: grid;
+  gap: 8px;
+}
+.summaryCard, .templateCard {
+  border: 1px solid var(--line);
+  background: #11171b;
+  border-radius: 6px;
+  padding: 10px;
+}
+.summaryCard strong {
+  color: var(--accent2);
+}
+.templateList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  max-height: 540px;
+  overflow: auto;
+}
+.templateCard {
+  color: var(--muted);
+}
+.templateCard b {
+  color: var(--text);
+}

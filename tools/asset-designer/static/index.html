@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KingdomMod Asset Designer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>KingdomMod Asset Designer</h1>
+      <p id="subtitle">Local mount sprite and challenge/island design workspace</p>
+    </div>
+    <div class="actions">
+      <button id="extractBtn">Extract Game References</button>
+      <button id="saveBtn">Save Design</button>
+      <button id="exportBtn" class="primary">Export Frames</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button id="mountTab" class="active">Mount Sprites</button>
+    <button id="challengeTab">Challenges & Islands</button>
+  </nav>
+
+  <main id="mountView" class="layout">
+    <section class="panel controls">
+      <h2>Design</h2>
+      <label>Name <input id="nameInput" type="text"></label>
+      <label>Animation
+        <select id="animationSelect"></select>
+      </label>
+      <div class="grid2">
+        <label>Width <input data-path="frame.width" type="number" min="32" max="256"></label>
+        <label>Height <input data-path="frame.height" type="number" min="32" max="256"></label>
+        <label>PPU <input data-path="frame.pixelsPerUnit" type="number" min="1" max="64"></label>
+        <label>Pivot Y <input data-path="frame.pivot.1" type="number" step="0.05" min="0" max="1"></label>
+      </div>
+
+      <h2>Shape</h2>
+      <div class="grid2">
+        <label>Body X <input data-path="body.x" type="range" min="20" max="80" step="1"></label>
+        <label>Body Y <input data-path="body.y" type="range" min="20" max="50" step="1"></label>
+        <label>Body W <input data-path="body.width" type="range" min="18" max="64" step="1"></label>
+        <label>Body H <input data-path="body.height" type="range" min="10" max="32" step="1"></label>
+        <label>Head X <input data-path="body.headX" type="range" min="40" max="92" step="1"></label>
+        <label>Head Y <input data-path="body.headY" type="range" min="10" max="46" step="1"></label>
+        <label>Antlers <input data-path="body.antlerScale" type="range" min="0" max="2" step="0.05"></label>
+        <label>Tail <input data-path="body.tailLength" type="range" min="0" max="24" step="1"></label>
+      </div>
+
+      <h2>Motion</h2>
+      <div class="grid2">
+        <label>Bob <input data-path="body.bob" type="range" min="0" max="5" step="0.1"></label>
+        <label>Walk Legs <input data-path="motion.walkLegAmp" type="range" min="0" max="8" step="0.1"></label>
+        <label>Run Legs <input data-path="motion.runLegAmp" type="range" min="0" max="10" step="0.1"></label>
+        <label>Run Amp <input data-path="motion.runSpeedAmp" type="range" min="0.5" max="3" step="0.1"></label>
+        <label>Eat Head <input data-path="motion.eatHeadY" type="range" min="20" max="52" step="1"></label>
+        <label>Tired Y <input data-path="motion.tiredBodyY" type="range" min="25" max="52" step="1"></label>
+      </div>
+
+      <h2>Palette</h2>
+      <div id="paletteControls" class="palette"></div>
+    </section>
+
+    <section class="panel preview">
+      <div class="previewHeader">
+        <h2>Preview</h2>
+        <span id="status"></span>
+      </div>
+      <div class="stage">
+        <img id="previewFrame" alt="Current generated frame">
+      </div>
+      <div id="filmstrip" class="filmstrip"></div>
+      <h2>References</h2>
+      <p class="note">Game references are private local files under build/asset-designer and must not be committed or redistributed.</p>
+      <div id="references" class="references"></div>
+    </section>
+
+    <section class="panel jsonPanel">
+      <h2>Design JSON</h2>
+      <textarea id="jsonEditor" spellcheck="false"></textarea>
+      <button id="applyJsonBtn">Apply JSON</button>
+      <h2>Export</h2>
+      <pre id="exportLog"></pre>
+    </section>
+  </main>
+
+  <main id="challengeView" class="challengeLayout hidden">
+    <section class="panel controls">
+      <h2>Challenge</h2>
+      <label>Name <input id="challengeName" type="text"></label>
+      <label>ID <input id="challengeId" type="text"></label>
+      <label>Description <textarea id="challengeDescription" spellcheck="false"></textarea></label>
+      <label>Base challenge <select id="baseChallenge"></select></label>
+      <div class="grid2">
+        <label>Seed <input data-challenge-path="challengeSeed" type="number"></label>
+        <label>Biome Index <input data-challenge-path="forceSelectBiomeIndex" type="number"></label>
+      </div>
+      <div class="checks">
+        <label><input data-challenge-path="isMultiplayer" type="checkbox"> Multiplayer</label>
+        <label><input data-challenge-path="includeHermits" type="checkbox"> Include hermits</label>
+        <label><input data-challenge-path="zombieMode" type="checkbox"> Zombie mode</label>
+      </div>
+
+      <h2>Island</h2>
+      <label>Selected island <select id="islandSelect"></select></label>
+      <div class="actions inline">
+        <button id="addIslandBtn">Add Island</button>
+        <button id="removeIslandBtn">Remove Island</button>
+      </div>
+      <label>Island name <input id="islandName" type="text"></label>
+      <label>Base island config <select id="baseLevelConfig"></select></label>
+      <div class="grid2 islandFields"></div>
+    </section>
+
+    <section class="panel preview">
+      <div class="previewHeader">
+        <h2>Challenge Preview</h2>
+        <span id="challengeStatus"></span>
+      </div>
+      <div id="challengeSummary" class="summary"></div>
+      <h2>Existing Templates</h2>
+      <p class="note">Templates come from the F3 dump in docs/_generated/f3-dump/latest. Start from a known-good challenge and island, then adjust safe fields.</p>
+      <div id="templateList" class="templateList"></div>
+    </section>
+
+    <section class="panel jsonPanel">
+      <h2>Challenge JSON</h2>
+      <textarea id="challengeJsonEditor" spellcheck="false"></textarea>
+      <div class="actions inline">
+        <button id="applyChallengeJsonBtn">Apply JSON</button>
+        <button id="exportChallengeBtn" class="primary">Export To F1</button>
+      </div>
+      <h2>Export</h2>
+      <pre id="challengeExportLog"></pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

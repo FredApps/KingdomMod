@@ -24,11 +24,15 @@ namespace KingdomMod.Loader.Console
         private bool _positioned;
         private Vector2 _scroll;
         private Vector2 _mountScroll;
+        private Vector2 _customMountScroll;
+        private Vector2 _challengeScroll;
         private int _coinsAmount = 10;
         private int _gemsAmount = 1;
         private int _mountTarget;
         private int _giftTarget;
         private bool _showMounts;
+        private bool _showCustomMounts;
+        private bool _showCustomChallenges;
         private GUIStyle _boldLabel;
         private GUIStyle _titleLabel;
         private GUIStyle _subLabel;
@@ -277,18 +281,21 @@ namespace KingdomMod.Loader.Console
             GUILayout.EndHorizontal();
             GUILayout.Space(8);
 
-            if (_showMounts)
+            if (_showMounts || _showCustomMounts || _showCustomChallenges)
             {
-                DrawMountSection();
+                if (_showCustomChallenges) DrawChallengeSection();
+                else DrawMountSection();
             }
             else
             {
                 // Mount + Log row.
                 GUILayout.BeginHorizontal();
 
-                // Left: Mount section.
+                // Left: Mount + challenge sections.
                 GUILayout.BeginVertical(GUILayout.Width(_window.width * 0.55f));
                 DrawMountSection();
+                GUILayout.Space(4);
+                DrawChallengeSection();
                 GUILayout.EndVertical();
 
                 GUILayout.Space(12);
@@ -394,6 +401,15 @@ namespace KingdomMod.Loader.Console
                 }
             }
             catch (System.Exception e) { Log($"Runtime logging reset failed - {e.Message}"); }
+            try
+            {
+                if (!string.IsNullOrEmpty(CustomChallengeManager.Instance.ActiveName))
+                {
+                    CustomChallengeManager.Instance.Clear(Log);
+                    n++;
+                }
+            }
+            catch (System.Exception e) { Log($"Custom challenge reset failed - {e.Message}"); }
 
             Log($"Reset {n} control(s) to off.");
         }
@@ -841,22 +857,40 @@ namespace KingdomMod.Loader.Console
                     "Show/hide the mount picker - swap any player onto any mount in the build."), GUILayout.Width(110)))
             {
                 _showMounts = !_showMounts;
+                if (_showMounts) _showCustomMounts = false;
+                if (_showMounts) _showCustomChallenges = false;
                 if (_showMounts) RebuildMountOptions();
             }
-            if (_showMounts)
+            if (GUILayout.Button(new GUIContent(_showCustomMounts ? "Custom [hide]" : "Custom [show]",
+                    "Show/hide custom mounts registered by mods."), GUILayout.Width(110)))
+            {
+                _showCustomMounts = !_showCustomMounts;
+                if (_showCustomMounts) _showMounts = false;
+                if (_showCustomMounts) _showCustomChallenges = false;
+            }
+            if (_showMounts || _showCustomMounts)
             {
                 GUILayout.Space(8);
                 GUILayout.Label(new GUIContent("Target:", "Which player the chosen mount is given to."), GUILayout.Width(50));
                 if (GUILayout.Toggle(_mountTarget == 0, new GUIContent("P1", "Give the mount to Player 1."), "Button", GUILayout.Width(36))) _mountTarget = 0;
                 if (GUILayout.Toggle(_mountTarget == 1, new GUIContent("P2", "Give the mount to Player 2."), "Button", GUILayout.Width(36))) _mountTarget = 1;
-                GUILayout.Space(8);
-                if (GUILayout.Button(new GUIContent("Refresh", "Rescan the build for available mount prefabs."), GUILayout.Width(70))) RebuildMountOptions();
+                if (_showMounts)
+                {
+                    GUILayout.Space(8);
+                    if (GUILayout.Button(new GUIContent("Refresh", "Rescan the build for available mount prefabs."), GUILayout.Width(70))) RebuildMountOptions();
+                }
             }
             else
             {
-                GUILayout.Label("Swap a player's mount at any time.");
+                GUILayout.Label("Swap a player's mount at any time, or open custom mounts registered by mods.");
             }
             GUILayout.EndHorizontal();
+
+            if (_showCustomMounts)
+            {
+                DrawCustomMounts();
+                return;
+            }
 
             if (!_showMounts) return;
 
@@ -877,6 +911,101 @@ namespace KingdomMod.Loader.Console
                 }
             }
             GUILayout.EndScrollView();
+        }
+
+        private void DrawChallengeSection()
+        {
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(new GUIContent(_showCustomChallenges ? "Challenges [hide]" : "Challenges [show]",
+                    "Show/hide custom challenge and island designs imported from UserData/KingdomMod/custom-challenges."), GUILayout.Width(140)))
+            {
+                _showCustomChallenges = !_showCustomChallenges;
+                if (_showCustomChallenges)
+                {
+                    _showMounts = false;
+                    _showCustomMounts = false;
+                    CustomChallengeManager.Instance.Refresh(Log);
+                }
+            }
+
+            if (_showCustomChallenges)
+            {
+                if (GUILayout.Button(new GUIContent("Refresh", "Reload custom challenge JSON files from the import folder."), GUILayout.Width(70)))
+                    CustomChallengeManager.Instance.Refresh(Log);
+                if (GUILayout.Button(new GUIContent("Clear", "Clear the active custom challenge override and return to vanilla challenges."), GUILayout.Width(60)))
+                    CustomChallengeManager.Instance.Clear(Log);
+                GUILayout.Label(new GUIContent("Folder: " + CustomChallengeManager.Instance.Folder,
+                    "The asset designer exports custom challenge JSON into this folder."), GUILayout.ExpandWidth(true));
+            }
+            else
+            {
+                var active = CustomChallengeManager.Instance.ActiveName;
+                string text = string.IsNullOrEmpty(active)
+                    ? "Import challenge/island JSON from the asset designer, then apply it here."
+                    : "Active custom challenge: " + active;
+                GUILayout.Label(text);
+            }
+            GUILayout.EndHorizontal();
+
+            if (!_showCustomChallenges) return;
+
+            var designs = CustomChallengeManager.Instance.Designs;
+            _challengeScroll = GUILayout.BeginScrollView(_challengeScroll, GUILayout.Height(138));
+            if (designs.Count == 0)
+            {
+                GUILayout.Label("(No custom challenge JSON files imported yet.)");
+            }
+            else
+            {
+                for (int i = 0; i < designs.Count; i++)
+                {
+                    var design = designs[i];
+                    GUILayout.BeginHorizontal();
+                    var tooltip = string.IsNullOrEmpty(design.Description)
+                        ? "Apply this custom challenge override."
+                        : design.Description;
+                    if (GUILayout.Button(new GUIContent(design.Name, tooltip), GUILayout.Height(30), GUILayout.Width((_window.width - 32f) * 0.34f)))
+                        CustomChallengeManager.Instance.Apply(i, Log);
+
+                    GUILayout.Label(new GUIContent(
+                        $"{design.Islands.Count} island(s)  base: {design.BaseChallenge ?? design.BaseChallengeType ?? "(auto)"}",
+                        design.SourcePath ?? ""), GUILayout.Height(30));
+                    GUILayout.EndHorizontal();
+                }
+            }
+            GUILayout.EndScrollView();
+        }
+
+        private void DrawCustomMounts()
+        {
+            var customMounts = Kingdom.CustomMounts.Mounts;
+            _customMountScroll = GUILayout.BeginScrollView(_customMountScroll, GUILayout.Height(138));
+            if (customMounts.Count == 0)
+            {
+                GUILayout.Label("(No custom mounts registered yet.)");
+            }
+            else
+            {
+                for (int i = 0; i < customMounts.Count; i += 2)
+                {
+                    GUILayout.BeginHorizontal();
+                    DrawCustomMountButton(customMounts[i]);
+                    if (i + 1 < customMounts.Count) DrawCustomMountButton(customMounts[i + 1]);
+                    else GUILayout.FlexibleSpace();
+                    GUILayout.EndHorizontal();
+                }
+            }
+            GUILayout.EndScrollView();
+        }
+
+        private void DrawCustomMountButton(CustomMountDefinition definition)
+        {
+            var label = string.IsNullOrEmpty(definition.BaseMount)
+                ? definition.Label
+                : $"{definition.Label}   ({definition.BaseMount})";
+            var tooltip = string.IsNullOrEmpty(definition.Tooltip) ? definition.Label : definition.Tooltip;
+            if (GUILayout.Button(new GUIContent(label, tooltip), GUILayout.Height(30), GUILayout.Width((_window.width - 32f) * 0.5f)))
+                RideCustomMount(_mountTarget, definition);
         }
 
         private void DrawMountButton(Steed steed)
@@ -997,6 +1126,48 @@ namespace KingdomMod.Loader.Console
                 // Clean up the instance we created, otherwise it'd just sit
                 // there orphaned at the player's position.
                 UnityEngine.Object.Destroy(instance.gameObject);
+            }
+        }
+
+        private void RideCustomMount(int playerId, CustomMountDefinition definition)
+        {
+            var target = FindPlayer(playerId);
+            if (target == null)
+            {
+                Log($"Player {playerId + 1} not in scene - load into a run first.");
+                return;
+            }
+
+            Steed instance;
+            try
+            {
+                instance = definition.Factory(target, Log);
+            }
+            catch (System.Exception e)
+            {
+                Log($"{definition.Label}: factory failed: {e.GetType().Name}: {e.Message}");
+                return;
+            }
+
+            if (instance == null)
+            {
+                Log($"{definition.Label}: mount factory returned nothing.");
+                return;
+            }
+
+            try
+            {
+                instance.transform.position = target.transform.position;
+                instance.gameObject.SetActive(true);
+                target.Ride(instance, replace: true, applyToCampaign: true);
+                RuntimeInteractionLogger.Event(RuntimeLogLevel.EventHeavy, "mount", "ride_custom", target, instance,
+                    data: RuntimeInteractionLogger.Fields(("player", playerId + 1), ("customMount", definition.Id), ("label", definition.Label)));
+                Log($"Player {playerId + 1} now riding {definition.Label}.");
+            }
+            catch (System.Exception e)
+            {
+                Log($"{definition.Label}: ride failed: {e.GetType().Name}: {e.Message}");
+                try { UnityEngine.Object.Destroy(instance.gameObject); } catch { }
             }
         }
     }

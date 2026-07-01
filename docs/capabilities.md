@@ -57,11 +57,15 @@ Change *what the game does*, not just numbers.
   toggle invulnerability, inspect state.
 - Current-session JSONL runtime logging for bug hunts, from focused crown/boar
   flows up to noisier raw interaction traces.
+- F1 custom challenge selector for JSON recipes exported from the asset
+  designer, based on cloned vanilla challenge and island templates.
 - **Example mod:** [`examples/SandboxConsole`](../examples/SandboxConsole).
 
 ### Tier 5 — New content (Hard)
 - New units, upgrades, decrees, mounts: clone an existing prefab, swap art/data,
   register it, and add the driving code.
+- Custom challenges/islands: clone existing `ChallengeData` and `LevelConfig`
+  templates, then override safe gameplay/layout fields from JSON.
 - Feasible but the most involved path; combines Tier 2 + Tier 4 plus prefab work.
 
 ### Worked content mods (mid-tier real examples)
@@ -71,6 +75,13 @@ Change *what the game does*, not just numbers.
   replace: true, applyToCampaign: true)` — the game's own mount-swap entry
   point, so dismount, network sync, and campaign-save persistence all happen
   for free.  See [`examples/AnyMount`](../examples/AnyMount) and the
+  [`Mount modding guide`](mount-modding.md).
+- **GloamHart** - complete custom mount example: a mod registers a synthetic
+  mount through `Kingdom.CustomMounts`, the loader shows it in F1 -> Custom,
+  and the mod clones a Reindeer/Stag-style `Steed`, applies custom stats, hides
+  the cloned vanilla renderers, and drives original generated sprite frames with
+  a lightweight overlay animator. See
+  [`examples/GloamHart`](../examples/GloamHart) and
   [`Mount modding guide`](mount-modding.md).
 - **AnyTrees** — three-control mod for the monarch's builder workflow:
   - *Mark any tree* for chopping, including the forest-edge/deep-forest trees
@@ -131,6 +142,12 @@ Change *what the game does*, not just numbers.
   live, deserialised values used by the game.  Open the relevant menu or enter
   a run first so more assets are referenced into memory.
   See [`examples/ChallengeDumper`](../examples/ChallengeDumper).
+- **Custom Challenges** - the local asset designer reads the F3
+  `challenges.json` and `levelconfigs.json` dumps, lets you edit a custom
+  challenge/island recipe, exports it to
+  `<KTC>/UserData/KingdomMod/custom-challenges`, and F1 -> Challenges applies it
+  as a cloned challenge override. See
+  [`Custom Challenges And Islands`](custom-challenges.md).
 
 ---
 
@@ -187,6 +204,11 @@ Change *what the game does*, not just numbers.
       () => Brave ? 1 : 0, idx => Brave = (idx == 1),
       "Lame = vanilla (only cleared trees can be marked). Brave = mark ANY tree.");
   ```
+- **Surface custom mounts via `Kingdom.CustomMounts`.** A mount mod registers a
+  label, tooltip, preferred base mount text, and a factory that returns a live
+  customized `Steed`. The loader renders those registrations in F1 -> Custom
+  and calls the game's own `Player.Ride` path after the factory returns.
+  See [`GloamHart`](../examples/GloamHart) for a complete implementation.
 - **Defend against scene transitions and main-menu state.** Director getters
   can NRE while a scene is being torn down or rebuilt; `Kingdom.IsReady`
   gates the entry points, and try/catch around Il2Cpp field reads keeps

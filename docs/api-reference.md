@@ -244,6 +244,7 @@ Kingdom.Players     // PlayersApi facade (monarchs)
 Kingdom.Enemies     // EnemyApi facade (Greed/blood-moon queries)
 Kingdom.Packs       // PackApi facade (no-code texture/audio/JSON loading)
 Kingdom.Mods        // ModsApi facade (F1 console controls and hotkey guide)
+Kingdom.CustomMounts // CustomMountsApi facade (F1 Custom Mounts registry)
 Kingdom.IsReady     // true when the Managers singleton exists
 ```
 
@@ -503,6 +504,39 @@ component and replace that one field. Keep the pack-loading step the same:
 
 Registrations are idempotent by label/key, so re-registering replaces the old
 entry instead of duplicating rows during hot reloads.
+
+## Kingdom.CustomMounts - `CustomMountsApi`
+
+| Member | Notes |
+|---|---|
+| `Register(id, label, tooltip, factory, baseMount)` | Adds a custom mount button to F1 -> Custom. |
+| `Mounts` | Read-only list used by the loader console. |
+
+The factory receives the selected `Player` and a log callback, then returns a
+live scene `Steed` instance. The mod should instantiate a prefab, apply stats
+and visuals, set it active near the player, and return it. The loader then calls
+`Player.Ride(instance, replace: true, applyToCampaign: true)` so custom mounts
+use the game's normal swap path.
+
+```csharp
+Kingdom.CustomMounts.Register(
+    "shadow_wolf",
+    "Shadow Wolf",
+    "Fast night predator cloned from the wolf prefab.",
+    (player, log) =>
+    {
+        var steed = Object.Instantiate(FindBasePrefab(SteedType.P1Wolf));
+        steed.name = "Shadow Wolf";
+        steed.transform.position = player.transform.position;
+        steed.gameObject.SetActive(true);
+        ApplyStatsAndSprites(steed);
+        return steed;
+    },
+    "Wolf");
+```
+
+For a complete custom mount with embedded generated sprites and an overlay
+animator, see [`examples/GloamHart`](../examples/GloamHart).
 
 ## HarmonyHelper
 
