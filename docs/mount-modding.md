@@ -498,6 +498,24 @@ the clone's **body** renderers (keeping the ruler/crown renderers so the mounted
 monarch stays visible), attaches a custom `SpriteRenderer`, and animates 32
 original frames from embedded PNG resources.
 
+## Custom Mount Abilities
+
+For custom behavior that does not already exist on the cloned base mount, keep
+the first version small and local to the custom mount. `examples/GloamHart`
+does this with **Gloam Rush**: the mod tracks live Gloam Hart instances, checks
+the rider's mapped gallop/Shift button (`RewiredAxis.Gallop`, with a raw Shift
+fallback), temporarily adjusts only that steed's movement/stamina fields, then
+restores the captured values when the effect ends or the mount is no longer
+ridden. The example also accepts `RewiredAxis.ActivateRulerAbility` as a
+secondary input, but the Shift path is the important mount trigger.
+
+Prefer the game's mapped input over raw keyboard checks so controller and P2
+bindings can work. If you temporarily mutate live `Steed` fields, capture the
+original values first and restore them on every cleanup path: timeout, mount
+switch, scene unload, and destroyed/inactive mount. Visual feedback can live in
+the same overlay/driver that animates your mount art, as long as it never
+touches ruler or crown renderers.
+
 ## Embedded Sprites For Bundled Mount Mods
 
 Pack folders are good for user-editable art. For a bundled example or a mod that

@@ -9,6 +9,12 @@ mounted ruler and crown renderers enabled so the monarch stays visible), and
 animates original embedded PNG frames through a lightweight overlay
 `SpriteRenderer`.
 
+While ridden, Gloam Hart also demonstrates a managed custom mount ability:
+press Shift or the game's mapped gallop button to trigger **Gloam Rush**, a
+short moonlit speed burst with reduced stamina drain and a glowing body pulse.
+The ability stores the mount's original stat values and restores them when the
+rush ends, the mount is no longer ridden, or the visual tracker is cleaned up.
+
 The editable design lives in `design/gloam_hart.mount-design.json`. The 32
 generated frames live in `assets/gloam_hart/`:
 
