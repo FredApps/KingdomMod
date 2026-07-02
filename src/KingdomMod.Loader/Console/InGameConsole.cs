@@ -31,6 +31,7 @@ namespace KingdomMod.Loader.Console
         private int _giftTarget;
         private bool _showMounts;
         private bool _showCustomMounts;
+        private float _mountPanelWidth;
         private bool _showChallenges = true;   // challenge list shown by default
         private bool _challengesLoaded;
         private GUIStyle _boldLabel;
@@ -289,32 +290,29 @@ namespace KingdomMod.Loader.Console
             GUILayout.EndHorizontal();
             GUILayout.Space(8);
 
-            // Bottom: mount/custom picker on the left, Log on the right. The picker
-            // lives in a fixed-height region (DrawMountSection), so showing/hiding
-            // mounts or custom mounts never changes the F1 window height.
-            GUILayout.BeginHorizontal();
+            bool mountPickerOpen = _showMounts || _showCustomMounts;
+            if (mountPickerOpen)
+            {
+                GUILayout.BeginVertical();
+                DrawMountSection(_window.width - 32f);
+                GUILayout.EndVertical();
+            }
+            else
+            {
+                // Bottom: mount/custom controls on the left, Log on the right. When
+                // a picker opens, it takes this whole area so it covers the log.
+                GUILayout.BeginHorizontal();
 
-            GUILayout.BeginVertical(GUILayout.Width(_window.width * 0.55f));
-            DrawMountSection();
-            GUILayout.EndVertical();
+                GUILayout.BeginVertical(GUILayout.Width(_window.width * 0.55f));
+                DrawMountSection(_window.width * 0.55f);
+                GUILayout.EndVertical();
 
-            GUILayout.Space(12);
+                GUILayout.Space(12);
 
-            // Right: Log. The extended runtime-logging level lives inline with the
-            // Log title (no separate section).
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Log", _titleLabel, GUILayout.Width(40));
-            GUILayout.Label(new GUIContent("<u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel, GUILayout.Width(70));
-            DrawRuntimeLoggingRadio();
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
-            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(84));
-            for (int i = _log.Count - 1; i >= 0; i--) GUILayout.Label(_log[i]);
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
+                DrawLogSection();
 
-            GUILayout.EndHorizontal();
+                GUILayout.EndHorizontal();
+            }
 
             DrawShortcutsGuide();
 
@@ -854,8 +852,26 @@ namespace KingdomMod.Loader.Console
             return null;
         }
 
-        private void DrawMountSection()
+        private void DrawLogSection()
         {
+            // The extended runtime-logging level lives inline with the Log title
+            // (no separate section).
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Log", _titleLabel, GUILayout.Width(40));
+            GUILayout.Label(new GUIContent("<u>Extended:</u>", "Writes current-session runtime interaction logs to UserData/KingdomMod/logs/runtime-latest.jsonl."), _subLabel, GUILayout.Width(70));
+            DrawRuntimeLoggingRadio();
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.Height(84));
+            for (int i = _log.Count - 1; i >= 0; i--) GUILayout.Label(_log[i]);
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawMountSection(float panelWidth)
+        {
+            _mountPanelWidth = Mathf.Max(260f, panelWidth);
             GUILayout.BeginHorizontal();
             if (GUILayout.Button(new GUIContent(_showMounts ? "Mount [hide]" : "Mount [show]",
                     "Show/hide the mount picker - swap any player onto any mount in the build."), GUILayout.Width(110)))
@@ -883,9 +899,9 @@ namespace KingdomMod.Loader.Console
             GUILayout.EndHorizontal();
 
             // Fixed-height picker region: showing mounts or custom mounts fills this
-            // same area instead of growing the window. Sized to match the Log
-            // beside it so the bottom row stays compact.
-            _mountScroll = GUILayout.BeginScrollView(_mountScroll, GUILayout.Height(84));
+            // same area instead of growing the window. Horizontal scrolling is
+            // disabled by sizing the two button columns to the actual panel width.
+            _mountScroll = GUILayout.BeginScrollView(_mountScroll, false, true, GUILayout.Height(84));
             if (_showCustomMounts)
                 DrawCustomMountRows();
             else if (_showMounts)
@@ -893,6 +909,11 @@ namespace KingdomMod.Loader.Console
             else
                 GUILayout.Label("Swap a player's mount at any time (Mount), or open custom mounts registered by mods (Custom).");
             GUILayout.EndScrollView();
+        }
+
+        private float MountButtonWidth()
+        {
+            return Mathf.Max(120f, (_mountPanelWidth - 40f) * 0.5f);
         }
 
         private void DrawMountRows()
@@ -986,7 +1007,7 @@ namespace KingdomMod.Loader.Console
                 ? definition.Label
                 : $"{definition.Label}   ({definition.BaseMount})";
             var tooltip = string.IsNullOrEmpty(definition.Tooltip) ? definition.Label : definition.Tooltip;
-            if (GUILayout.Button(new GUIContent(label, tooltip), GUILayout.Height(30), GUILayout.Width((_window.width - 32f) * 0.5f)))
+            if (GUILayout.Button(new GUIContent(label, tooltip), GUILayout.Height(30), GUILayout.Width(MountButtonWidth())))
                 RideCustomMount(_mountTarget, definition);
         }
 
@@ -997,7 +1018,7 @@ namespace KingdomMod.Loader.Console
                 GUILayout.FlexibleSpace();
                 return;
             }
-            if (GUILayout.Button($"{steed.steedType}   ({steed.name})", GUILayout.Height(30), GUILayout.Width((_window.width - 32f) * 0.5f)))
+            if (GUILayout.Button($"{steed.steedType}   ({steed.name})", GUILayout.Height(30), GUILayout.Width(MountButtonWidth())))
                 RidePlayer(_mountTarget, steed);
         }
 
@@ -1154,4 +1175,3 @@ namespace KingdomMod.Loader.Console
         }
     }
 }
-
