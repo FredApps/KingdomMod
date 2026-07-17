@@ -15,6 +15,14 @@ ask questions, and help grow the Kingdom Two Crowns modding community.
 > assets. Developer reference assemblies are generated locally from your own
 > game install and are never redistributed.
 
+## Preview
+
+![KingdomMod F1 console showing the Gloam Hart custom mount, cheats, fixes, powers, logging, and challenge controls](docs/media/kingdommod-f1-gloam-hart-preview.png)
+
+<video controls src="docs/media/kingdommod-f1-gloam-hart-demo.mp4" title="KingdomMod F1 console and Gloam Hart demo"></video>
+
+[Watch the short KingdomMod F1 console and Gloam Hart demo](docs/media/kingdommod-f1-gloam-hart-demo.mp4).
+
 ## Install
 
 1. Download [`KingdomMod-<version>-x64.msi`](https://github.com/FredApps/KingdomMod/releases) from the latest GitHub Release.
