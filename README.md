@@ -19,9 +19,9 @@ ask questions, and help grow the Kingdom Two Crowns modding community.
 
 ![KingdomMod F1 console showing the Gloam Hart custom mount, cheats, fixes, powers, logging, and challenge controls](docs/media/kingdommod-f1-gloam-hart-preview.png)
 
-<video controls src="docs/media/kingdommod-f1-gloam-hart-demo.mp4" title="KingdomMod F1 console and Gloam Hart demo"></video>
+![KingdomMod F1 console and Gloam Hart demo](docs/media/kingdommod-f1-gloam-hart-demo.gif)
 
-[Watch the short KingdomMod F1 console and Gloam Hart demo](docs/media/kingdommod-f1-gloam-hart-demo.mp4).
+[Watch the full-quality MP4 demo](docs/media/kingdommod-f1-gloam-hart-demo.mp4).
 
 ## Install
 
