@@ -33,6 +33,13 @@ Write-Host "Re-dumping class surface..."
 & "$PSScriptRoot\dump-classes.ps1" -GameDir $game -Force
 
 Write-Host "Re-generating SDK references..."
-& "$PSScriptRoot\generate-sdk.ps1" -GameDir $game
+# A patch can bump the Unity version, so the generator must be allowed online to
+# fetch the matching UnityDependencies zip; restore offline mode afterwards.
+Set-OfflineGeneration -GameDir $game -Enabled $false
+try {
+    & "$PSScriptRoot\generate-sdk.ps1" -GameDir $game
+} finally {
+    if (Test-InteropGenerated -GameDir $game) { Set-OfflineGeneration -GameDir $game -Enabled $true }
+}
 
 Write-Host "`nDone. Rebuild mods with: dotnet build KingdomMod.sln -c Release" -ForegroundColor Green

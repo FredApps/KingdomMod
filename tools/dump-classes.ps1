@@ -39,7 +39,11 @@ $dotnet = Resolve-Dotnet
 Write-Host "Dumping class surface (this reads the game, never modifies it)..."
 $env:DOTNET_ROLL_FORWARD = 'LatestMajor'
 & $dotnet $dumper $asm $meta $outDir
-if ($LASTEXITCODE -ne 0) { throw "Il2CppDumper exited with $LASTEXITCODE" }
+# Il2CppDumper ends with "press any key", which throws when stdin is redirected
+# (CI, non-interactive shells) after the dump is already written.
+if ($LASTEXITCODE -ne 0 -and -not (Test-Path (Join-Path $outDir 'dump.cs'))) {
+    throw "Il2CppDumper exited with $LASTEXITCODE"
+}
 
 Write-Host ""
 Write-Host "Dump written to $outDir"

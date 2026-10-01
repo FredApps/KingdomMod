@@ -20,8 +20,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$UnityDependenciesVersion = '6000.0.61'
-$UnityDependenciesSha512 = '8AA951234926A3E0471FBF0C951A362DB310C4823867A11C81861C9887A00BCE68312974F01B6B021BA46E68F618BD0390C12FAAD6E3680E61F05D2E085CB421'
+$UnityDependenciesVersion = '6000.0.66'
+$UnityDependenciesSha512 = '39D1B7C1D65D8413AC7AFB6B19FD6F5F1BB9D234DE8FCFECB4A5B42D1F23F6A005B788FA739EA5A38116E3C32B86257D437A4D078C724B0256AC1CB9F4DF1F9D'
 $MelonLoaderPortableDotnetVersion = '6.0.25'
 
 $script:CleanupGameDir = $null
@@ -630,6 +630,21 @@ function Test-GeneratedInteropReady {
 
     $gen = Join-Path $GameDir 'MelonLoader\Il2CppAssemblies'
     if (-not (Test-Path -LiteralPath $gen)) { return $false }
+
+    # After a game update the cache is stale: MelonLoader records the hash of the
+    # GameAssembly.dll it generated from, so regenerate when that no longer matches.
+    $genCfg = Join-Path $GameDir 'MelonLoader\Dependencies\Il2CppAssemblyGenerator\Config.cfg'
+    $gameAsm = Join-Path $GameDir 'GameAssembly.dll'
+    if ((Test-Path -LiteralPath $genCfg) -and (Test-Path -LiteralPath $gameAsm)) {
+        $m = [regex]::Match((Get-Content -LiteralPath $genCfg -Raw), '(?m)^\s*GameAssemblyHash\s*=\s*"([0-9A-Fa-f]+)"')
+        if ($m.Success) {
+            $live = (Get-FileHash -LiteralPath $gameAsm -Algorithm SHA512).Hash
+            if ($live -ne $m.Groups[1].Value.ToUpperInvariant()) {
+                Write-Host 'Generated interop is stale (game was updated); regenerating.'
+                return $false
+            }
+        }
+    }
 
     if (Test-Path -LiteralPath (Join-Path $gen 'Il2Cppmscorlib.dll')) { return $true }
     if (Test-Path -LiteralPath (Join-Path $gen 'Assembly-CSharp.dll')) { return $true }

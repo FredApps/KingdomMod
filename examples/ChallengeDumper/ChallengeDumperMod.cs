@@ -159,7 +159,8 @@ namespace KingdomMod.Examples.ChallengeDumper
             w.BeginNested("goldTierConditionsMultiplayerP2");          WriteConditions(w, c.goldTierConditionsMultiplayerP2);          w.EndNested(false);
             w.BeginNested("cursedTierConditionsMultiplayer");          WriteConditions(w, c.cursedTierConditionsMultiplayer);          w.EndNested(false);
 
-            w.Field("customSwapData", RefName(c.customSwapData), isLast: true);
+            // customSwapData was removed in game 2.4.2.
+            w.Field("customBiomeObjectPools", RefName(c.customBiomeObjectPools), isLast: true);
             w.EndObject();
         }
 
