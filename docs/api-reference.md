@@ -377,6 +377,13 @@ The example reskin mod uses the PNG filename without extension as the lookup
 key. If a renderer's current sprite is named `banner_blue`, then
 `sprites/banner_blue.png` replaces it.
 
+Match the individual sprite name exactly, including case, rather than the
+containing atlas texture name. For example, use
+`player_armour_king_walk_0.png` for that frame, not a `sactx-...-rulers-...` atlas
+filename. Each PNG contains one frame, not the entire atlas. The active monarch
+must actually use that frame; biome/model fallback and animation state can
+select other sprites.
+
 ### Construct a sprite
 
 ```csharp
@@ -392,8 +399,11 @@ var sprite = Kingdom.Packs.MakeSprite(texture);
 - `FilterMode.Point`, which preserves Kingdom Two Crowns' pixel-art look
 - `TextureWrapMode.Clamp`
 - readable texture data, so Unity can build sprites from it
+- `HideFlags.HideAndDontSave`, so the cached texture survives scene transitions
 
 `MakeSprite` creates a full-rectangle sprite:
+
+Generated sprites also use `HideFlags.HideAndDontSave` to survive scene changes.
 
 ```csharp
 var sprite = Kingdom.Packs.MakeSprite(
@@ -459,20 +469,30 @@ private System.Collections.IEnumerator ApplySpritesAfterFrame()
 }
 ```
 
-That is exactly the pattern used by
-[`examples/ReskinPack`](../examples/ReskinPack). It is intentionally broad and
-beginner-friendly: every visible `SpriteRenderer` with a matching sprite name is
-changed.
+This is a minimal example for static objects, not a complete animated reskin.
+[`examples/ReskinPack`](../examples/ReskinPack) extends it by checking cached
+renderers in `OnLateUpdate`, after animation evaluation, and refreshing discovery
+every half-second. That supports changing animation frames and objects spawned
+after scene initialization without performing a scene-wide search every frame.
+It constructs and caches replacements using each original sprite's
+pixels-per-unit and normalized pivot instead of assuming `16f` and a center pivot.
+
+ReskinPack's `Loaded N sprite replacement(s)` message counts loaded images.
+`Matched sprite 'name' ...` confirms an actual renderer assignment. Names not
+observed so far are reported five seconds after scene initialization; they can
+still match later during walking or a different monarch/scene. See the
+[ReskinPack guide](../examples/ReskinPack/README.md) for monarch troubleshooting.
 
 ### When simple replacement is not enough
 
-The renderer scan covers many environmental props, banners, icons, and simple
-objects. More advanced cases may need a targeted patch instead:
+The single scene scan above covers static props. ReskinPack's continuous frame
+replacement also supports ordinary animated `SpriteRenderer`s. More advanced
+cases may need a targeted patch instead:
 
-- A sprite is assigned after your scene scan runs.
+- A custom system assigns sprites after the replacement's `LateUpdate` runs.
 - A sprite comes from a UI `Image`, not a `SpriteRenderer`.
-- An object uses an animator, material property, tilemap, atlas, or custom draw
-  path.
+- An object uses material properties, tilemaps, or a custom draw path instead of
+  individual `SpriteRenderer` frames.
 - You only want to replace one instance, not every renderer using that sprite
   name.
 

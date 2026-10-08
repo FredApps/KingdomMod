@@ -108,9 +108,13 @@ namespace KingdomMod
             {
                 filterMode = FilterMode.Point,   // KTC is pixel-art; nearest sampling matters.
                 wrapMode   = TextureWrapMode.Clamp,
+                hideFlags  = HideFlags.HideAndDontSave,
             };
             if (!ImageConversion.LoadImage(tex, bytes, markNonReadable: false))
+            {
+                UnityEngine.Object.Destroy(tex);
                 return null;
+            }
             _textureCache[absolutePath] = tex;
             return tex;
         }
@@ -119,13 +123,15 @@ namespace KingdomMod
         public Sprite MakeSprite(Texture2D tex, float pixelsPerUnit = 16f, Vector2? pivot = null)
         {
             if (tex == null) return null;
-            return Sprite.Create(
+            var sprite = Sprite.Create(
                 tex,
                 new Rect(0, 0, tex.width, tex.height),
                 pivot ?? new Vector2(0.5f, 0.5f),
                 pixelsPerUnit,
                 0,
                 SpriteMeshType.FullRect);
+            if (sprite != null) sprite.hideFlags = HideFlags.HideAndDontSave;
+            return sprite;
         }
 
         /// <summary>
