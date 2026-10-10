@@ -12,6 +12,10 @@ late-spawned/re-enabled renderers, scene transitions, original pivot/scale,
 cached variants, asset lifetime flags, and match diagnostics. It needs no game
 references and is not part of the deployed mod solution.
 
+It also checks atlas-clone name normalization, late sprite naming, correction
+of assignments made after `LateUpdate` by the render hook, hook cleanup,
+unmatched biome observations, and latest-session JSONL replacement on restart.
+
 This does not validate Unity's real animation callback order, PNG decoding,
 shaders, or the visible result in-game. For the live check, install user-created
 replacement frames for the active monarch, enter an island, walk, and confirm

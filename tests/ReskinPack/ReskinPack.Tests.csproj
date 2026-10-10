@@ -9,6 +9,7 @@
   <ItemGroup>
     <Reference Remove="@(Reference)" />
     <Compile Include="../../examples/ReskinPack/ReskinMod.cs" Link="ReskinMod.cs" />
+    <Compile Include="../../examples/ReskinPack/ReskinDiagnostics.cs" Link="ReskinDiagnostics.cs" />
     <Compile Include="../../src/KingdomMod.Api/PackApi.cs" Link="PackApi.cs" />
   </ItemGroup>
 </Project>

@@ -359,7 +359,8 @@ This is easiest and matches `examples/ReskinPack`:
 3. Load those PNGs into a dictionary.
 4. On scene load and after mount instantiation, scan `SpriteRenderer`s and
    replace matching sprite names.
-5. Reapply after animation evaluation in `LateUpdate`, as ReskinPack does; a
+5. Reapply after animation evaluation in `LateUpdate` and before camera rendering,
+   as ReskinPack does; a
    one-time scene scan cannot keep animated frames replaced. Refresh renderer
    discovery for newly spawned mounts and preserve each original frame's pivot
    and pixels-per-unit.

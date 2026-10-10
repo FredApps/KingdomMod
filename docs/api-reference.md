@@ -377,12 +377,15 @@ The example reskin mod uses the PNG filename without extension as the lookup
 key. If a renderer's current sprite is named `banner_blue`, then
 `sprites/banner_blue.png` replaces it.
 
-Match the individual sprite name exactly, including case, rather than the
+Match the individual sprite name rather than the
 containing atlas texture name. For example, use
 `player_armour_king_walk_0.png` for that frame, not a `sactx-...-rulers-...` atlas
 filename. Each PNG contains one frame, not the entire atlas. The active monarch
 must actually use that frame; biome/model fallback and animation state can
 select other sprites.
+ReskinPack ignores case and surrounding whitespace and can match runtime
+`(Clone)` suffixes to the unsuffixed PNG name. It does not remove biome names or
+frame numbers, and an explicit clone-named PNG takes precedence over fallback.
 
 ### Construct a sprite
 
@@ -471,7 +474,7 @@ private System.Collections.IEnumerator ApplySpritesAfterFrame()
 
 This is a minimal example for static objects, not a complete animated reskin.
 [`examples/ReskinPack`](../examples/ReskinPack) extends it by checking cached
-renderers in `OnLateUpdate`, after animation evaluation, and refreshing discovery
+renderers in `OnLateUpdate` and before `KingdomRenderPipeline.DrawCamera`, and refreshing discovery
 every half-second. That supports changing animation frames and objects spawned
 after scene initialization without performing a scene-wide search every frame.
 It constructs and caches replacements using each original sprite's
@@ -482,6 +485,9 @@ ReskinPack's `Loaded N sprite replacement(s)` message counts loaded images.
 observed so far are reported five seconds after scene initialization; they can
 still match later during walking or a different monarch/scene. See the
 [ReskinPack guide](../examples/ReskinPack/README.md) for monarch troubleshooting.
+The current-session `UserData/KingdomMod/logs/reskin-latest.jsonl` records actual
+runtime sprite names (including unmatched frames), renderer paths, texture and
+shader information. Include it with `Latest.log` when reporting a failed reskin.
 
 ### When simple replacement is not enough
 
@@ -489,7 +495,7 @@ The single scene scan above covers static props. ReskinPack's continuous frame
 replacement also supports ordinary animated `SpriteRenderer`s. More advanced
 cases may need a targeted patch instead:
 
-- A custom system assigns sprites after the replacement's `LateUpdate` runs.
+- A custom system assigns sprites after the replacement's camera callback runs.
 - A sprite comes from a UI `Image`, not a `SpriteRenderer`.
 - An object uses material properties, tilemaps, or a custom draw path instead of
   individual `SpriteRenderer` frames.

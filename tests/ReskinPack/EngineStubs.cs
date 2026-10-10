@@ -11,6 +11,7 @@ namespace MelonLoader
         public virtual void OnInitializeMelon() { }
         public virtual void OnSceneWasInitialized(int index, string name) { }
         public virtual void OnLateUpdate() { }
+        public virtual void OnUpdate() { }
         public virtual void OnApplicationQuit() { }
     }
     public sealed class TestLogger
@@ -30,9 +31,31 @@ namespace MelonLoader
         public MelonGameAttribute(string developer, string name) { }
     }
 }
+namespace Il2Cpp { public sealed class KingdomRenderPipeline { private void DrawCamera() { } } }
+namespace HarmonyLib
+{
+    public static class Priority { public const int Last = 0; }
+    public static class AccessTools
+    {
+        public static System.Reflection.MethodInfo Method(Type type, string name)
+            => type.GetMethod(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+    }
+    public sealed class HarmonyMethod
+    {
+        public int priority;
+        public HarmonyMethod(Type type, string name) { }
+    }
+    public sealed class Harmony
+    {
+        public static bool Unpatched;
+        public Harmony(string id) { Unpatched = false; }
+        public void Patch(System.Reflection.MethodInfo target, HarmonyMethod prefix) { }
+        public void UnpatchSelf() => Unpatched = true;
+    }
+}
 namespace MelonLoader.Utils
 {
-    public static class MelonEnvironment { public static string ModsDirectory; }
+    public static class MelonEnvironment { public static string ModsDirectory; public static string UserDataDirectory; }
 }
 namespace KingdomMod
 {
@@ -70,16 +93,28 @@ namespace UnityEngine
         public static void Destroy(Object value) => Live.Remove(value);
         public static T[] FindObjectsByType<T>(FindObjectsInactive inactive, FindObjectsSortMode mode) where T : Object
         {
-            DiscoveryCalls++;
+            if (typeof(T) == typeof(SpriteRenderer)) DiscoveryCalls++;
             return Live.OfType<T>().ToArray();
         }
     }
-    public sealed class GameObject : Object { public bool activeInHierarchy = true; }
+    public sealed class GameObject : Object
+    {
+        public bool activeInHierarchy = true;
+    }
+    public sealed class Transform : Object { public Transform parent; }
+    public struct Color { public float a; }
+    public sealed class Shader : Object { }
+    public sealed class Material : Object { public Shader shader; }
     public sealed class SpriteRenderer : Object
     {
         public Sprite sprite;
         public bool enabled = true;
         public readonly GameObject gameObject = new() { name = "Test ruler" };
+        public readonly Transform transform = new() { name = "Test ruler" };
+        public Color color = new() { a = 1 };
+        public Material sharedMaterial;
+        public int sortingLayerID;
+        public int sortingOrder;
     }
     public sealed class Texture2D : Object
     {
