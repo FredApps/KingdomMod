@@ -56,7 +56,9 @@ that owned MelonLoader copy too. If MelonLoader was already installed, or if
 other non-KingdomMod content is present there, MelonLoader stays in place. The
 MSI also removes its support/cache folders and any Defender exclusion that
 KingdomMod added itself. User data, packs, preferences, logs, dumps, and save
-backups are preserved.
+backups are preserved. Empty mod/pack folders are removed and do not count as
+unrelated content. If MelonLoader is preserved, its console window can still
+appear when launching the game even though KingdomMod has been uninstalled.
 
 ## In-Game Hotkeys
 

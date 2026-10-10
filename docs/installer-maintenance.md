@@ -36,7 +36,9 @@ Uninstall:
 3. It removes the Defender exclusion only when KingdomMod recorded that it
    added that exclusion.
 4. It removes MSI-owned MelonLoader only when no foreign content remains under
-   `Mods`, `Plugins`, or `UserLibs`.
+   `Mods`, `Plugins`, or `UserLibs`. Empty directory trees, including the
+   ReskinPack scaffold, are removed before this check. Directories containing
+   files and directory links are preserved and still protect MelonLoader.
 
 ## Ownership Matrix
 
@@ -111,6 +113,10 @@ Before publishing a release:
   it logs the failure and continues cleanup.
 - If a user reports MelonLoader left behind, first check whether `Mods`,
   `Plugins`, or `UserLibs` contained foreign content.
+- A command window when launching the game after uninstall usually means
+  `version.dll` is still loading MelonLoader. Preexisting user-owned MelonLoader
+  is deliberately preserved; empty pack folders alone must not preserve an
+  MSI-owned copy. Never redeploy mods while preparing a clean uninstall test.
 - If a user reports MelonLoader removed unexpectedly, check whether
   `OwnsMelonLoader=1` was carried forward from a previous release or legacy
   `owns-melonloader` marker.

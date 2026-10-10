@@ -92,6 +92,18 @@ function Remove-EmptyDirectory {
     }
 }
 
+function Remove-EmptyModDirectories {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $directory = Get-Item -LiteralPath $Path -Force
+    if ($directory.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return }
+    foreach ($child in Get-ChildItem -LiteralPath $Path -Directory -Force -ErrorAction Stop) {
+        Remove-EmptyModDirectories -Path $child.FullName
+    }
+    Remove-EmptyDirectory -Path $Path
+}
+
 function Stop-GameProcesses {
     param([Parameter(Mandatory=$true)][string]$GameDir)
 
@@ -218,6 +230,11 @@ $defenderExclusionAdded = (Test-Truthy -Value (Get-RegistryValue -Path $Installe
 Stop-GameProcesses -GameDir $game
 Remove-KingdomModDlls -ModsDir $modsDir
 Remove-InstallerBuildCache -SupportDir $support -CacheDir $cache
+
+# Empty pack scaffolding is not an installed mod and must not keep the loader active.
+foreach ($relative in @('Mods', 'Plugins', 'UserLibs')) {
+    Remove-EmptyModDirectories -Path (Join-Path $game $relative)
+}
 
 $foreignContent = @(Get-ForeignContent -GameDir $game)
 if ($ownsMelonLoader -and $foreignContent.Count -eq 0) {

@@ -150,6 +150,23 @@ try {
         Assert-NotExists $reg
     }
 
+    Invoke-Scenario -Name 'empty-pack-folders-do-not-preserve-owned-loader' -Arrange {
+        param($game, $reg)
+        Add-SupportPayload -GameDir $game
+        Add-MelonLoader -GameDir $game
+        Add-KingdomModDlls -GameDir $game
+        foreach ($relative in @('Mods\ReskinPack\pack\sprites', 'Plugins\empty', 'UserLibs\empty')) {
+            New-Item -ItemType Directory -Force -Path (Join-Path $game $relative) | Out-Null
+        }
+        Set-TestRegistry -Path $reg -GameDir $game -OwnsMelonLoader $true -DefenderExclusionAdded $false
+    } -Assert {
+        param($game, $reg)
+        foreach ($relative in @('MelonLoader', 'version.dll', 'Mods', 'Plugins', 'UserLibs', '.kingdommod-installer')) {
+            Assert-NotExists (Join-Path $game $relative)
+        }
+        Assert-NotExists $reg
+    }
+
     Invoke-Scenario -Name 'owned-preserves-foreign-mod-content' -Arrange {
         param($game, $reg)
         Add-SupportPayload -GameDir $game
